@@ -1,4 +1,4 @@
-#define DEBUG 1
+//#define DEBUG 1
 #define DEBUG_BUS_RECEIVE_FF  1
 #define DEBUG BUS_RECEIVE_ISO 1
 #define DEBUG_COMMAND 1
