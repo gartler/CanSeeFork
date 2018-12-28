@@ -197,7 +197,7 @@ void storeFrame (CAN_frame_t &frame)
       flow.FIR.B.DLC = 8;                              // length 8 bytes
       flow.data.u8[0] = 0x30;                          // type Flow (3), flag Clear to send (0)
       flow.data.u8[1] = 0x00;                          // instruct to send all remaining frames without flow control
-      flow.data.u8[2] = 0x00;                          // delay between frames <=127 = millis
+      flow.data.u8[2] = 0x10;                          // delay between frames <=127 = millis
       flow.data.u8[3] = 0;                             // fill-up
       flow.data.u8[4] = 0;                             // fill-up
       flow.data.u8[5] = 0;                             // fill-up
