@@ -172,13 +172,31 @@ void storeFrame (CAN_frame_t &frame)
 
     // single frame answer *****************************************************
     if (type == 0x0) {
-      // output the data
-      String dataString = frameToOutput(frame);
+      uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
+      if (messageLength > 7) messageLength = 7;  // this should never happen
+      isoMessage.length = messageLength;
+
+      // clear data buffer
+      for (int i = 0; i < messageLength; i++)
+        isoMessage.data[i] = 0;
+
+      // fill up with this initial first-frame data (should always be 6)
+      isoMessage.index = 0;                            // pointer at start of array
+      for (int i = 1; i < frame.FIR.B.DLC; i++)        // was starting at 4?
+      {
+        if (isoMessage.index < isoMessage.length)
+        {
+          isoMessage.data[isoMessage.index++] = frame.data.u8[i];
+        }
+      }
+      String dataString = messageToOutput(isoMessage);
 #ifdef DEBUG_BUS_RECEIVE_ISO
-      Serial.print("ISO SING:");
+      Serial.print(">>ISO SING:");
       Serial.print(dataString);
 #endif
       SerialBT.print(dataString);
+
+      // cancel this message
       isoMessage.id = 0xffff;
     }
 
