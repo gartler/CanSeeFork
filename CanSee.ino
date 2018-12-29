@@ -7,20 +7,21 @@
 #define SERIAL_BPS 115200
 #define VERSION "001"
 
-/* board is a CP2102 like this 
- *  https://www.ebay.com.au/itm/262903668612 or
- *  https://www.tinytronics.nl/shop/en/communication/network/esp32-wi-fi-and-bluetooth-board-cp2102
- *  
- *  My board: DOIT ESP32 DEVKIT V1
- *  
- *  ESP32 GPIO5 - CAN CTX 
- *  ESP32 GPIO4 - CAN CRX
- *  
- */
+/* board is a CP2102 like this
+    https://www.ebay.com.au/itm/262903668612 or
+    https://www.tinytronics.nl/shop/en/communication/network/esp32-wi-fi-and-bluetooth-board-cp2102
+
+    My board: DOIT ESP32 DEVKIT V1
+
+    ESP32 GPIO5 - CAN CTX
+    ESP32 GPIO4 - CAN CRX
+
+*/
 
 #include <ESP32CAN.h>
 #include <CAN_config.h>
 #include "BluetoothSerial.h"
+#include "WiFi.h"
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
@@ -33,8 +34,18 @@
 #undef SERIAL_BPS
 #endif
 
+// Bluetooth ***************************************
 BluetoothSerial SerialBT;
 
+// WiFi ********************************************
+#define MAX_SRV_CLIENTS 1
+const char* ssid = "yourNetworkName";
+const char* password = "yourNetworkPassword";
+
+WiFiServer server(35000);
+WiFiClient serverClients[MAX_SRV_CLIENTS];
+
+// Command *****************************************
 // structure that defines a textual incoming command
 typedef struct
 {
@@ -46,6 +57,17 @@ typedef struct
   uint8_t replyLength = 0;
 } COMMAND;
 
+// CANbus ******************************************
+CAN_device_t CAN_cfg;
+
+// Free frames storage *****************************
+// all free frames are stored inside an 2D array storage for all 700 free frames is pre-allocated,
+// which will speed up request/response time. Byte 8 is length, Byte 9 is reserved for age.
+#define SIZE 0x700
+uint8_t dataArray[SIZE][10];
+int dataArraySize = SIZE;
+
+// ISO-TP message **********************************
 // structure that defines an ISO-TP message
 typedef struct
 {
@@ -61,29 +83,12 @@ typedef struct
   // uint8_t* data = 0;
   uint8_t data[1024];
 } ISO_MESSAGE;
-
-// declare the configuration memory structure
-CAN_device_t CAN_cfg;
-
-// all free frames are stored inside an 2D array storage for all 700 free frames is pre-allocated,
-// which will speed up request/response time. Byte 8 is length, Byte 9 is reserved for age.
-#define SIZE 0x700
-uint8_t dataArray[SIZE][10];
-int dataArraySize = SIZE;
-
-/*
-// declare an empty CAN frame
-CAN_frame_t EMPTY;
-*/
-
-// declare an ISO-TP nessage
 ISO_MESSAGE isoMessage;
 
-// declare a read buffer
+// command read buffer *****************************
 String readBuffer = "";
 
 void setup() {
-
 #ifdef DEBUG
   // init serial
   Serial.begin(SERIAL_BPS);
@@ -92,39 +97,33 @@ void setup() {
   Serial.println("CANSee starting ...");
 #endif
 
-  // init bluetooth serial
-  SerialBT.begin("CANSee");
-/*
-  // init EMPTY frame
-  EMPTY.FIR.B.DLC = 8;
-  for (int i = 0; i < EMPTY.FIR.B.DLC; i++)
-    EMPTY.data.u8[i] = 0;
-*/
-  // init the CAN bus
-  // set CAN pins and baudrate
-  CAN_cfg.speed = CAN_SPEED_500KBPS;
+  SerialBT.begin("CANSee");                        // init Bluetooth serial
+  
+  WiFi.softAP(ssid, password);                     // init WiFi
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+  
+  CAN_cfg.speed = CAN_SPEED_500KBPS;               // init the CAN bus (pins and baudrate)
   CAN_cfg.tx_pin_id = GPIO_NUM_5;
   CAN_cfg.rx_pin_id = GPIO_NUM_4;
-
-  // create a generic RTOS queue for CAN receiving, with 10 positions
+                                                   // create a generic RTOS queue for CAN receiving, with 10 positions
   CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
   if (CAN_cfg.rx_queue == 0) {
 #ifdef DEBUG
     Serial.println("Can't create CANbus buffer. Stopping");
-    while (1);
 #endif
+    while (1);
   }
+  ESP32Can.CANInit();                              // initialize CAN Module
 
-  // initialize CAN Module
-  ESP32Can.CANInit();
-
-  // clear the free frame buffer. Data zeroed, length zeroed, not timed out
-  for (int id = 0; id < dataArraySize; id++) {
+  for (int id = 0; id < dataArraySize; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
     for (int i = 0; i < 9; i++) {
       dataArray[id][i] = 0;
     }
     dataArray[id][9] = 0xff;
   }
+
 }
 
 
@@ -206,11 +205,11 @@ void storeFrame (CAN_frame_t &frame)
 #ifdef DEBUG_BUS_RECEIVE_ISO
       Serial.print("ISO FRST:");
       Serial.print(dataString);
-#endif 
+#endif
       // start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
       CAN_frame_t flow;
       flow.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
-      flow.FIR.B.RTR = CAN_no_RTR;                     // no RTR   
+      flow.FIR.B.RTR = CAN_no_RTR;                     // no RTR
       flow.MsgID = isoMessage.requestId;               // send it to the requestId
       flow.FIR.B.DLC = 8;                              // length 8 bytes
       flow.data.u8[0] = 0x30;                          // type Flow (3), flag Clear to send (0)
@@ -251,12 +250,12 @@ void storeFrame (CAN_frame_t &frame)
     }
 
     // consecutive frame(s) ****************************************************
-    else if (type == 0x2){
+    else if (type == 0x2) {
       String dataString = frameToOutput(frame);
 #ifdef DEBUG_BUS_RECEIVE_ISO
       Serial.print("ISO NEXT:");
       Serial.print(dataString);
- #endif
+#endif
       uint8_t sequence = frame.data.u8[0] & 0x0f;
       if (isoMessage.next == sequence)
       {
@@ -309,44 +308,101 @@ void storeFrame (CAN_frame_t &frame)
    I/O functions
 */
 
-// read incoming data via serial or bluetooth
-void readIncoming()
-{
+void readIncoming() {
+  readIncomingSerial();
+  readIncomingBluetooth();
+  readIncomingWiFi();
+
+}
+
+void readIncomingSerial() {
 #ifdef DEBUG
-  // Serial
-  if (Serial.available())
-  {
+  if (Serial.available()) {
     char ch = Serial.read();
-    if (ch == '\n' || ch == '\r')
-    {
-      if (readBuffer != "")
-      {
+    if (ch == '\n' || ch == '\r') {
+      if (readBuffer != "") {
         processCommand(readBuffer);
         readBuffer = "";
       }
-    }
-    else
-    {
+    } else {
       readBuffer += ch;
     }
   }
 #endif
+}
 
-  // Bluetooth
-  if (SerialBT.available())
-  {
+void readIncomingBluetooth() {
+  if (SerialBT.available()) {
     char ch = SerialBT.read();
-    if (ch == '\n' || ch == '\r')
-    {
-      if (readBuffer != "")
-      {
+    if (ch == '\n' || ch == '\r') {
+      if (readBuffer != "") {
         processCommand(readBuffer);
         readBuffer = "";
       }
-    }
-    else
-    {
+    } else {
       readBuffer += ch;
+    }
+  }
+}
+
+void readIncomingWiFi() {
+  // no need to check for WL_CONNECTED, as we are the access point
+  uint8_t i;
+  if (server.hasClient()) {                            // check if there are any *NEW* clients
+    for (i = 0; i < MAX_SRV_CLIENTS; i++) {            //if so, find free or disconnected spot
+      if (!serverClients[i] || !serverClients[i].connected()) {
+        if (serverClients[i]) {                        // if not free (so disconnected)
+          serverClients[i].stop();                     // stop the client
+#ifdef DEBUG_COMMAND
+          Serial.print("Disconnected: ");
+          Serial.println(i);
+#endif
+        }
+        serverClients[i] = server.available();         // fetch the client
+        if (serverClients[i]) {                        // it should be here
+#ifdef DEBUG_COMMAND
+          Serial.print("New client: ");
+          Serial.print(i); Serial.print(' ');
+          Serial.println(serverClients[i].remoteIP());
+#endif
+        } else {                                       // if gone, oh well
+#ifdef DEBUG_COMMAND
+          Serial.println("available broken");
+#endif
+        }
+        break;
+      }
+    }
+    if (i >= MAX_SRV_CLIENTS) {
+      //no free/disconnected spot so reject
+      server.available().stop();
+#ifdef DEBUG_COMMAND
+      Serial.println("Refused");
+#endif
+    }
+  }
+
+  for (i = 0; i < MAX_SRV_CLIENTS; i++) {              // check clients for data
+    if (serverClients[i] && serverClients[i].connected()) {
+      while (serverClients[i].available()) {         // if there is data
+        char ch = serverClients[i].read();           // get it
+        if (ch == '\n' || ch == '\r') {              // buffer / process it
+          if (readBuffer != "") {
+            processCommand(readBuffer);
+            readBuffer = "";
+          }
+        } else {
+          readBuffer += ch;
+        }
+      }
+    } else {                                           // no client, or unconnected
+      if (serverClients[i]) {                          // if there is a client (so unconnected)
+        serverClients[i].stop();                       // stop the client
+#ifdef DEBUG_COMMAND
+          Serial.print("Disconnected: ");
+          Serial.println(i);
+#endif
+      }
     }
   }
 }
@@ -415,13 +471,13 @@ void processCommand(String &line)
         SerialBT.print(String (command.id, HEX) + "\n");
         return;
       }
-/*
-      // store reply                                    // .reply is never used!!!!!
-      isoMessage.replyLength = command.replyLength;
-      if (isoMessage.replyLength > 8) isoMessage.replyLength = 8; // this should never happen
-      for (int i = 0; i < command.replyLength; i++)
-        isoMessage.reply[i] = command.reply[i];
-*/
+      /*
+            // store reply                                    // .reply is never used!!!!!
+            isoMessage.replyLength = command.replyLength;
+            if (isoMessage.replyLength > 8) isoMessage.replyLength = 8; // this should never happen
+            for (int i = 0; i < command.replyLength; i++)
+              isoMessage.reply[i] = command.reply[i];
+      */
       // store request
       isoMessage.requestLength = command.requestLength;
       if (isoMessage.requestLength > 7) isoMessage.requestLength = 7; // this should never happen
@@ -432,9 +488,9 @@ void processCommand(String &line)
       {
         // build the CAN frame
         CAN_frame_t frame;
-        
+
         frame.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
-        frame.FIR.B.RTR = CAN_no_RTR;                     // no RTR       
+        frame.FIR.B.RTR = CAN_no_RTR;                     // no RTR
         frame.MsgID = isoMessage.requestId;               // set the ID
         frame.FIR.B.DLC = 8; //command.requestLength + 1; // set the length. Note some ECU's like DLC 8
 
@@ -492,7 +548,7 @@ void processCommand(String &line)
     SerialBT.print(String (command.id, HEX) + "\n");
   }
 
-  
+
   // give up ******************************************************************
   else {
 #ifdef DEBUG
