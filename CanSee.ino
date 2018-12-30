@@ -572,7 +572,8 @@ void processCommand(String & line)
     Serial.print ("Injecting " + canFrameToString (frame));
 #endif
     storeFrame(frame);
-    writeOutgoing (String (command.id, HEX) + "\n");
+    // storeframe will output if free frame or ISO-TP Single
+    // writeOutgoing (String (command.id, HEX) + "\n");
   }
 
   // filter (deprecated) *******************************************************
