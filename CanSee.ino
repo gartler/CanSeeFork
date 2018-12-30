@@ -6,6 +6,8 @@
 #define DEBUG_COMMAND_ISO 1
 #define SERIAL_BPS 115200
 #define VERSION "001"
+#define USE_WIFI 1
+//#define USE_SOFTAP 1
 
 /* board is a CP2102 like this
     https://www.ebay.com.au/itm/262903668612 or
@@ -22,6 +24,7 @@
 #include <CAN_config.h>
 #include "BluetoothSerial.h"
 #include "WiFi.h"
+#include "config.h"
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
@@ -34,18 +37,24 @@
 #undef SERIAL_BPS
 #endif
 
-// Bluetooth ***************************************
+#ifndef USE_WIFI
+#undef USE_SOFTAP
+#endif
+
+
+// Bluetooth *****************************************************************
 BluetoothSerial SerialBT;
 
-// WiFi ********************************************
+// WiFi *** (sensitive data in config.h, do not include in the repository! ***
+#ifdef USE_WIFI
 #define MAX_SRV_CLIENTS 1
-const char* ssid = "yourNetworkName";
-const char* password = "yourNetworkPassword";
+boolean wiFiIsActive = false;
 
 WiFiServer server(35000);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
+#endif
 
-// Command *****************************************
+// Command *******************************************************************
 // structure that defines a textual incoming command
 typedef struct
 {
@@ -57,10 +66,10 @@ typedef struct
   uint8_t replyLength = 0;
 } COMMAND;
 
-// CANbus ******************************************
+// CANbus ********************************************************************
 CAN_device_t CAN_cfg;
 
-// Free frames storage *****************************
+// Free frames storage *******************************************************
 // all free frames are stored inside an 2D array storage for all 700 free frames is pre-allocated,
 // which will speed up request/response time. Byte 8 is length, Byte 9 is reserved for age.
 #define SIZE 0x700
@@ -90,8 +99,7 @@ String readBuffer = "";
 
 void setup() {
 #ifdef DEBUG
-  // init serial
-  Serial.begin(SERIAL_BPS);
+  Serial.begin(SERIAL_BPS);                        // init serial
   Serial.println("");
   Serial.println("");
   Serial.println("CANSee starting ...");
@@ -99,13 +107,20 @@ void setup() {
 
   SerialBT.begin("CANSee");                        // init Bluetooth serial
 
-  WiFi.softAP (ssid, password);                     // init WiFi
-  IPAddress IP = WiFi.softAPIP ();
+#ifdef USE_WIFI
+#ifdef USE_SOFTAP
+  WiFi.softAP (ssid, password);                    // init WiFi access point
+  wiFiIsActive = true;                             // no need to check for active network
 #ifdef DEBUG
+  IPAddress IP = WiFi.softAPIP ();
   Serial.print ("AP IP address: ");
   Serial.println (IP);
 #endif
-  server.begin ();
+#else
+  WiFi.begin(ssid, password);                      // init WiFi station. Cheking is done in main loop
+#endif
+  server.begin ();                                 // start the server
+#endif
 
   CAN_cfg.speed = CAN_SPEED_500KBPS;               // init the CAN bus (pins and baudrate)
   CAN_cfg.tx_pin_id = GPIO_NUM_5;
@@ -130,7 +145,6 @@ void setup() {
 
 
 void loop() {
-
   CAN_frame_t rx_frame;
 
   // 1. receive next CAN frame from queue
@@ -144,22 +158,38 @@ void loop() {
 
   // 3. age data array of free frames
   // to do
+
+  // 4. check WiFi network statusif in station mode
+#ifdef USE_WIFI
+#ifndef USE_SOFTAP
+  if (WiFi.status() == WL_CONNECTED) {            // check if connected
+    if (!wiFiIsActive) {
+#ifdef DEBUG
+      IPAddress IP = WiFi.localIP ();
+      Serial.print ("IP address: ");
+      Serial.println (IP);
+#endif
+      wiFiIsActive = true;
+    }
+  } else {
+    if (wiFiIsActive) {
+      wiFiIsActive = false;
+    }
+  }
+#endif
+#endif
 }
 
 /********************************************
-   frame handling functions
-   see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
-*/
+ *   frame handling function
+ *  see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
+ */
 
-// store a free frame or
-// handle an ISO-TP frame
-void storeFrame (CAN_frame_t &frame)
-{
-  // free data stream is < 0x700
-  if (frame.MsgID < 0x700) {
+void storeFrame (CAN_frame_t &frame) {
+  if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
 #ifdef DEBUG_BUS_RECEIVE_FF
     Serial.print ("FF:");
-    Serial.print(frameToOutput(frame));
+    Serial.print(canFrameToString(frame));
 #endif
     for (int i = 0; i < 8; i++)                   // store a copy
       dataArray[frame.MsgID][i] = frame.data.u8[i];
@@ -175,7 +205,7 @@ void storeFrame (CAN_frame_t &frame)
     if (type == 0x0) {
 #ifdef DEBUG_BUS_RECEIVE_ISO
       Serial.print(">>ISO SING:");
-      Serial.print(frameToOutput(frame));
+      Serial.print(canFrameToString(frame));
 #endif
       uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
       if (messageLength > 7) messageLength = 7;  // this should never happen
@@ -194,7 +224,7 @@ void storeFrame (CAN_frame_t &frame)
           isoMessage.data[isoMessage.index++] = frame.data.u8[i];
         }
       }
-      String dataString = messageToOutput(isoMessage);
+      String dataString = isoMessageToString(isoMessage);
       writeOutgoing (dataString);
 
       // cancel this message
@@ -205,7 +235,7 @@ void storeFrame (CAN_frame_t &frame)
     else if (type == 0x1) {
 #ifdef DEBUG_BUS_RECEIVE_ISO
       Serial.print("ISO FRST:");
-      Serial.print(frameToOutput(frame));
+      Serial.print(canFrameToString(frame));
 #endif
       // start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
       CAN_frame_t flow;
@@ -252,7 +282,7 @@ void storeFrame (CAN_frame_t &frame)
     else if (type == 0x2) {
 #ifdef DEBUG_BUS_RECEIVE_ISO
       Serial.print("ISO NEXT:");
-      Serial.print(frameToOutput(frame));
+      Serial.print(canFrameToString(frame));
 #endif
       uint8_t sequence = frame.data.u8[0] & 0x0f;
       if (isoMessage.next == sequence) {
@@ -269,7 +299,7 @@ void storeFrame (CAN_frame_t &frame)
         if (isoMessage.index == isoMessage.length)
         {
           // output the data
-          String dataString = messageToOutput(isoMessage);
+          String dataString = isoMessageToString(isoMessage);
 #ifdef DEBUG_BUS_RECEIVE_ISO
           Serial.print(">>ISO MSG:");
 #endif
@@ -320,13 +350,13 @@ void writeOutgoingBluetooth (String o) {
 }
 
 void writeOutgoingWiFi (String o) {
-
+#ifdef USE_WIFI
+  if (!wiFiIsActive) return;
   char buf[1024];
   unsigned int len;
   o.replace ("\n", "\n\r");
   if ((len = o.length()) > 1024) len = 1024;
   o.toCharArray(buf, len);
-  Serial.println (len);
   for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
     if (serverClients[i] && serverClients[i].connected()) {
       //serverClients[i].write(o);
@@ -334,6 +364,7 @@ void writeOutgoingWiFi (String o) {
       //delay(1);
     }
   }
+#endif
 }
 
 void readIncoming() {
@@ -373,6 +404,8 @@ void readIncomingBluetooth() {
 }
 
 void readIncomingWiFi() {
+#ifdef USE_WIFI
+  if (!wiFiIsActive) return;
   // no need to check for WL_CONNECTED, as we are the access point
   uint8_t i;
   if (server.hasClient()) {                            // check if there are any *NEW* clients
@@ -432,6 +465,7 @@ void readIncomingWiFi() {
       }
     }
   }
+#endif
 }
 
 // execute a command
@@ -444,7 +478,7 @@ void processCommand(String & line)
     int count = 0;
     for (int id = 0; id < dataArraySize; id++) {
       if (dataArray[id][9]) { // print length 0 frames, but do not print timeout frames
-        writeOutgoing (frameDataToOutput (id, dataArray[id])); // includes \n
+        writeOutgoing (bufferedFrameToString (id)); // includes \n
         count++;
       }
     }
@@ -457,7 +491,7 @@ void processCommand(String & line)
   else if (command.cmd == 'g') {
     if (command.id < dataArraySize) {
       if (dataArray[command.id][9]) { // print length 0 frames, but do not print timeout frames
-        writeOutgoing (frameDataToOutput(command.id, dataArray[command.id]));
+        writeOutgoing (bufferedFrameToString(command.id));
       } else {
 #ifdef DEBUG
         Serial.println("W:Not received " + String (command.id, HEX));
@@ -509,7 +543,7 @@ void processCommand(String & line)
         // send the frame
 #ifdef DEBUG_COMMAND_ISO
         Serial.print ("Sending ISOTP request:");
-        Serial.print (frameToOutput (frame));
+        Serial.print (canFrameToString (frame));
 #endif
         ESP32Can.CANWriteFrame (&frame);
         // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
@@ -535,7 +569,7 @@ void processCommand(String & line)
     for (int i = 0; i < command.requestLength; i++)
       frame.data.u8[i] = command.request[i];
 #ifdef DEBUG_COMMAND
-    Serial.print ("Injecting " + frameToOutput (frame));
+    Serial.print ("Injecting " + canFrameToString (frame));
 #endif
     storeFrame(frame);
     writeOutgoing (String (command.id, HEX) + "\n");
@@ -642,8 +676,8 @@ COMMAND decodeCommand(String & input)
    Converter functions
 */
 
-// convert a frame to readable hex output format
-String frameToOutput(CAN_frame_t &frame)
+// convert a CAN_frame to readable hex output format
+String canFrameToString(CAN_frame_t &frame)
 {
   String dataString = String(frame.MsgID, HEX) + ",";
   for (int i = 0; i < frame.FIR.B.DLC; i++)
@@ -654,8 +688,8 @@ String frameToOutput(CAN_frame_t &frame)
   return dataString;
 }
 
-// convert an ISO-TP message to readable hex output format
-String messageToOutput(ISO_MESSAGE & message)
+// convert an ISO_MESSAGE to readable hex output format
+String isoMessageToString(ISO_MESSAGE & message)
 {
   String dataString = String(message.id, HEX) + ",";
   for (int i = 0; i < message.length; i++)
@@ -666,9 +700,10 @@ String messageToOutput(ISO_MESSAGE & message)
   return dataString;
 }
 
-// convert the data of a frame into the desired output format
-String frameDataToOutput (int id, uint8_t *fd)
+// convert a buffered frame to readable hex output format
+String bufferedFrameToString (int id)
 {
+  uint8_t *fd = dataArray[id];
   String dataString = String (id, HEX) + ",";
   for (int i = 0; i < fd[8]; i++)
   {
