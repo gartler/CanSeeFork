@@ -601,7 +601,7 @@ void processCommand(String & line) {
   // request an ISO-TP frame ***************************************************
   else if (command.cmd == 'i') {
     // only accept this command if the requested ID belongs to an ISO-TP frame
-    if (command.id >= 0x700 & command.id <= 0x7ff) {
+    if (command.id >= 0x700 && command.id <= 0x7ff) {
       // store ID
       isoMessage.id = command.id;                       // expected ID of answer
       if ((isoMessage.requestId = getRequestId(command.id)) == 0) { // ID to send request to
