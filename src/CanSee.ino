@@ -1,14 +1,20 @@
-//#define DEBUG 1
-#define DEBUG_BUS_RECEIVE_FF  1
-#define DEBUG_BUS_RECEIVE_ISO 1
+#define DEBUG 1
+//#define DEBUG_BUS_RECEIVE_SPECIAL  1
+//#define DEBUG_BUS_RECEIVE_FF  1
+//#define DEBUG_BUS_RECEIVE_ISO 1
 #define DEBUG_COMMAND 1
 #define DEBUG_COMMAND_FF 1
 #define DEBUG_COMMAND_ISO 1
-#define SERIAL_BPS 115200
+
 #define VERSION "001"
-#define USE_WIFI 1
+
+#define SERIAL_BPS 115200
+#define USE_SERIAL 1
+#define USE_BLUETOOTH 1
+//#define USE_WIFI 1
 //#define USE_SOFTAP 1
-#define USE_LEDS 1
+
+//#define USE_LEDS 1
 
 /* board is a CP2102 like this
     https://www.ebay.com.au/itm/262903668612 or
@@ -43,6 +49,7 @@
 #endif
 
 #ifndef DEBUG
+#undef DEBUG_BUS_RECEIVE_SPECIAL
 #undef DEBUG_BUS_RECEIVE_FF
 #undef DEBUG_BUS_RECEIVE_ISO
 #undef DEBUG_COMMAND
@@ -62,7 +69,9 @@
 #endif
 
 // Bluetooth *****************************************************************
+#ifdef USE_BLUETOOTH
 BluetoothSerial SerialBT;
+#endif
 
 // WiFi *** (sensitive data in config.h, do not include in the repository! ***
 #ifdef USE_WIFI
@@ -161,14 +170,18 @@ void setup() {
 #endif
 
 
-#ifdef DEBUG
+#if defined (DEBUG) || defined (USE_SERIAL)
   Serial.begin(SERIAL_BPS);                        // init serial
+#endif
+#ifdef DEBUG
   Serial.println("");
   Serial.println("");
   Serial.println("CANSee starting ...");
 #endif
 
+#ifdef USE_BLUETOOTH
   SerialBT.begin("CANSee");                        // init Bluetooth serial
+#endif
 
 #ifdef USE_WIFI
 #ifdef USE_SOFTAP
@@ -224,6 +237,11 @@ void loop() {
   // removed 3 * portTICK_PERIOD_MS to not block the code
   CAN_frame_t rx_frame;
   if (xQueueReceive (CAN_cfg.rx_queue, &rx_frame, (TickType_t)0) == pdTRUE) {
+#ifdef DEBUG_BUS_RECEIVE_SPECIAL
+    if (rx_frame.MsgID == 0x5d7) {
+      Serial.print (canFrameToString (rx_frame));
+    }
+#endif
     storeFrame (rx_frame);
   }
 
@@ -401,14 +419,14 @@ void storeFrame (CAN_frame_t &frame) {
 #ifdef DEBUG
         Serial.println("E:ISO Out of sequence, resetting");
 #endif
-        writeOutgoing("fff,\n");
+        //writeOutgoing("fff,\n");
         isoMessage.id = 0xffff;
       }
     } else {
 #ifdef DEBUG
       Serial.println("E:ISO ignoring unknown frame type:" + String (type));
 #endif
-      writeOutgoing("fff,\n");
+      //writeOutgoing("fff,\n");
     }
 
 #ifdef USE_LEDS
@@ -418,7 +436,7 @@ void storeFrame (CAN_frame_t &frame) {
 #ifdef DEBUG
     Serial.println("E:ISO frame of unrequested id:" + String(frame.MsgID, HEX));
 #endif
-    writeOutgoing("fff,\n");
+    //writeOutgoing("fff,\n");
   }
 }
 
@@ -433,13 +451,15 @@ void writeOutgoing (String o) {
 }
 
 void writeOutgoingSerial (String o) {
-#ifdef DEBUG
+#if defined (DEBUG) || defined (USE_SERIAL)
   Serial.print (o);
 #endif
 }
 
 void writeOutgoingBluetooth (String o) {
+#ifdef USE_BLUETOOTH
   SerialBT.print (o);
+#endif
 }
 
 void writeOutgoingWiFi (String o) {
@@ -467,7 +487,7 @@ void readIncoming() {
 }
 
 void readIncomingSerial() {
-#ifdef DEBUG
+#if defined (DEBUG) || defined (USE_SERIAL)
   if (Serial.available()) {
     char ch = Serial.read();
     if (ch == '\n' || ch == '\r') {
@@ -563,6 +583,9 @@ void readIncomingWiFi() {
 
 // execute a command
 void processCommand(String & line) {
+#ifdef DEBUG_COMMAND
+  Serial.println("< com:" + line);
+#endif
   COMMAND command = decodeCommand(line);
 
   // output all buffered frames ************************************************
@@ -575,82 +598,71 @@ void processCommand(String & line) {
       }
     }
 #ifdef DEBUG_COMMAND
-    Serial.println("Framecount = " + String (count));
+    Serial.println("> fcn:" + String (count));
 #endif
+    return;
   }
 
   // get a frame ***************************************************************
   else if (command.cmd == 'g') {
     if (command.id < dataArraySize) {
-      if (dataArray[command.id][9]) { // print length 0 frames, but do not print timeout frames
-        writeOutgoing (bufferedFrameToString(command.id));
-      } else {
-#ifdef DEBUG
-        Serial.println("W:Not received " + String (command.id, HEX));
-#endif
-        writeOutgoing ("fff,\n");
-      }
+      writeOutgoing (bufferedFrameToString(command.id));
     } else {
 #ifdef DEBUG_COMMAND
-      Serial.print ("ID out of bounds (0 - 0x6ff)");
+      Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
 #endif
-      writeOutgoing (String (command.id, HEX) + "\n");
+      writeOutgoing (bufferedFrameToString(0));
     }
+    return;
   }
 
   // request an ISO-TP frame ***************************************************
   else if (command.cmd == 'i') {
     // only accept this command if the requested ID belongs to an ISO-TP frame
-    if (command.id >= 0x700 && command.id <= 0x7ff) {
-      // store ID
-      isoMessage.id = command.id;                       // expected ID of answer
-      if ((isoMessage.requestId = getRequestId(command.id)) == 0) { // ID to send request to
-#ifdef DEBUG_COMMAND
-        Serial.println ("E:ID has no corresponding request ID");
-#endif
-        writeOutgoing (String (command.id, HEX) + "\n");
-        return;
-      }
-      // store request
-      isoMessage.requestLength = command.requestLength;
-      if (isoMessage.requestLength > 7) isoMessage.requestLength = 7; // this should never happen
-      for (int i = 0; i < command.requestLength; i++)
-        isoMessage.request[i] = command.request[i];
-
-      if (isoMessage.requestId > 0) {
-        CAN_frame_t frame;                                // build the CAN frame
-        frame.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
-        frame.FIR.B.RTR = CAN_no_RTR;                     // no RTR
-        frame.MsgID = isoMessage.requestId;               // set the ID
-        frame.FIR.B.DLC = 8; //command.requestLength + 1; // set the length. Note some ECU's like DLC 8
-        for (int i = 0; i < frame.FIR.B.DLC; i++)         // zero out frame
-          frame.data.u8[i] = 0;
-
-        // we are assuming here that requests are always single frame. This is formally not true, but good enough for us
-        frame.data.u8[0] = (command.requestLength & 0x0f);
-
-        for (int i = 0; i < command.requestLength; i++)   // fill up the other bytes with the request
-          frame.data.u8[i + 1] = command.request[i];
-
-        // send the frame
-#ifdef DEBUG_COMMAND_ISO
-        Serial.print ("Sending ISOTP request:");
-        Serial.print (canFrameToString (frame));
-#endif
-        ESP32Can.CANWriteFrame (&frame);
-        // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
-      } else {
-#ifdef DEBUG
-        Serial.println ("E:No request-ID available for " + String (isoMessage.id, HEX));
-#endif
-        writeOutgoing (String (command.id, HEX) + "\n");
-      }
-    } else {
+    if (command.id < 0x700 || command.id > 0x7ff) {
 #ifdef DEBUG
       Serial.println ("E:ID out of bounds (0x700 - 0x7ff)");
 #endif
       writeOutgoing (String (command.id, HEX) + "\n");
+      return;
     }
+    // store ID
+    isoMessage.id = command.id;                       // expected ID of answer
+    if ((isoMessage.requestId = getRequestId(command.id)) == 0) { // ID to send request to
+#ifdef DEBUG_COMMAND
+      Serial.println ("> com:" + String (command.id, HEX) + " has no corresponding request ID");
+#endif
+      writeOutgoing (String (command.id, HEX) + "\n");
+      return;
+    }
+    // store request
+    isoMessage.requestLength = command.requestLength;
+    if (isoMessage.requestLength > 7) isoMessage.requestLength = 7; // this should never happen
+    for (int i = 0; i < command.requestLength; i++)
+      isoMessage.request[i] = command.request[i];
+
+    CAN_frame_t frame;                                // build the CAN frame
+    frame.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
+    frame.FIR.B.RTR = CAN_no_RTR;                     // no RTR
+    frame.MsgID = isoMessage.requestId;               // set the ID
+    frame.FIR.B.DLC = 8; //command.requestLength + 1; // set the length. Note some ECU's like DLC 8
+    for (int i = 0; i < frame.FIR.B.DLC; i++)         // zero out frame
+      frame.data.u8[i] = 0;
+
+    // we are assuming here that requests are always single frame. This is formally not true, but good enough for us
+    frame.data.u8[0] = (command.requestLength & 0x0f);
+
+    for (int i = 0; i < command.requestLength; i++)   // fill up the other bytes with the request
+      frame.data.u8[i + 1] = command.request[i];
+
+    // send the frame
+#ifdef DEBUG_COMMAND_ISO
+    Serial.print ("> com:Sending ISOTP request:");
+    Serial.print (canFrameToString (frame));
+#endif
+    ESP32Can.CANWriteFrame (&frame);
+        // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
+    return;
   }
 
   // inject a frame via serial / BT input **************************************
@@ -661,29 +673,32 @@ void processCommand(String & line) {
     for (int i = 0; i < command.requestLength; i++)
       frame.data.u8[i] = command.request[i];
 #ifdef DEBUG_COMMAND
-    Serial.print ("Injecting " + canFrameToString (frame));
+    Serial.print ("> com:Injecting " + canFrameToString (frame));
 #endif
     storeFrame(frame);
     // storeframe will output if free frame or ISO-TP Single
     // writeOutgoing (String (command.id, HEX) + "\n");
+    return;
   }
 
   // filter (deprecated) *******************************************************
   else if (command.cmd == 'f')
   {
 #ifdef DEBUG_COMMAND
-    Serial.println ("Filter " + String (command.id, HEX));
+    Serial.println ("> com:Filter " + String (command.id, HEX));
 #endif
     writeOutgoing (String (command.id, HEX) + "\n");
+    return;
   }
 
 
   // give up ******************************************************************
   else {
 #ifdef DEBUG
-    Serial.println ("E:Unknown command " + String (command.cmd));
+    Serial.println ("> com:Unknown command " + String (command.cmd));
 #endif
     writeOutgoing("fff,\n");
+    return;
   }
 }
 
@@ -797,9 +812,11 @@ String bufferedFrameToString (int id)
 {
   uint8_t *fd = dataArray[id];
   String dataString = String (id, HEX) + ",";
-  for (int i = 0; i < fd[8]; i++)
-  {
-    dataString += getHex(fd[i]);
+  if (fd[9]) {
+    for (int i = 0; i < fd[8]; i++)
+    {
+      dataString += getHex(fd[i]);
+    }
   }
   dataString += "\n";
   return dataString;
@@ -828,16 +845,16 @@ unsigned int hexToDec(String hexString) {
   int nextInt;
 
   for (int i = 0; i < hexString.length(); i++) {
-
     nextInt = int(hexString.charAt(i));
-    if (nextInt >= 48 && nextInt <= 57) nextInt = map(nextInt, 48, 57, 0, 9);
-    if (nextInt >= 65 && nextInt <= 70) nextInt = map(nextInt, 65, 70, 10, 15);
-    if (nextInt >= 97 && nextInt <= 102) nextInt = map(nextInt, 97, 102, 10, 15);
+    if (nextInt >= 48 && nextInt <= 57)
+      nextInt = map(nextInt, 48, 57, 0, 9);
+    else if (nextInt >= 65 && nextInt <= 70)
+      nextInt = map(nextInt, 65, 70, 10, 15);
+    else if (nextInt >= 97 && nextInt <= 102)
+      nextInt = map(nextInt, 97, 102, 10, 15);
     nextInt = constrain(nextInt, 0, 15);
-
     decValue = (decValue * 16) + nextInt;
   }
-
   return decValue;
 }
 
