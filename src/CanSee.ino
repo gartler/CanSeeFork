@@ -53,17 +53,18 @@
 
 */
 
-#include <ESP32CAN.h>
-#include <CAN_config.h>
-#include "BluetoothSerial.h"
-#include "WiFi.h"
-#include "config.h"
+// Arduino framework includes ************************************************
+#include <WiFi.h>
+#include <BluetoothSerial.h>
 
-// please comment this out and and put the real thing in your config.h
-// which should - of course - be ignored by git ;-)
-// const char ssid[] = "test";
-// const char password[] = "test";
+// Repository included libraries includes, see ./lib/ ************************
+#include "ESP32CAN.h"
+#include "CAN_config.h"
 
+// Our own includes, see ./include/ ******************************************
+#include "config.h"     // Contains WiFi credentials for station mode
+
+// Tidy up defs **************************************************************
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
@@ -82,6 +83,8 @@
 #define LED_RED 32      // power
 #define LED_GREEN 33    // serial incoming request
 #define LED_BLUE 25     // bluetooth connected
+#define LED_ON LOW      // active LOW
+#define LED_OFF HIGH
 #endif
 
 #ifndef USE_WIFI
@@ -118,18 +121,19 @@ typedef struct
 CAN_device_t CAN_cfg;
 
 // Free frames storage *******************************************************
-// all free frames are stored inside an 2D array storage for all 700 free frames is pre-allocated,
-// which will speed up request/response time. Byte 8 is length, Byte 9 is reserved for age.
+// all free frames are stored inside an 2D array storage for all 700 free
+// frames is pre-allocated, which will speed up request/response time. Byte
+// 8 is length, Byte 9 is reserved for age.
 #define SIZE 0x700
 uint8_t dataArray[SIZE][10];
 int dataArraySize = SIZE;
 
-// ISO-TP message **********************************
+// ISO-TP message ************************************************************
 // structure that defines an ISO-TP message
 typedef struct
 {
-  uint16_t id = 0xffff;                                // the from-address of the responding device
-  uint16_t requestId = 0xffff;                         // the to-address of the device to send the request to
+  uint16_t id = 0xffff;                            // the from-address of the responding device
+  uint16_t requestId = 0xffff;                     // the to-address of the device to send the request to
   uint16_t length = 0;
   uint8_t index = 0;
   uint8_t next = 1;
@@ -144,7 +148,7 @@ typedef struct
 // declare an ISO-TP message
 ISO_MESSAGE isoMessage;
 
-// command read buffer *****************************
+// command read buffer *******************************************************
 String readBuffer = "";
 
 void setup() {
@@ -157,28 +161,28 @@ void setup() {
   pinMode(LED_BLUE, OUTPUT);
 
   // they are active low ...
-  digitalWrite(LED_WHITE, HIGH);
-  digitalWrite(LED_YELLOW, HIGH);
-  digitalWrite(LED_RED, HIGH);
-  digitalWrite(LED_GREEN, HIGH);
-  digitalWrite(LED_BLUE, HIGH);
+  digitalWrite(LED_WHITE, LED_OFF);
+  digitalWrite(LED_YELLOW, LED_OFF);
+  digitalWrite(LED_RED, LED_OFF);
+  digitalWrite(LED_GREEN, LED_OFF);
+  digitalWrite(LED_BLUE, LED_OFF);
 
   // startup sequence
-  digitalWrite(LED_BLUE, LOW);
+  digitalWrite(LED_BLUE, LED_ON);
   delay(200);
-  digitalWrite(LED_BLUE, HIGH);
-  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_BLUE, LED_OFF);
+  digitalWrite(LED_GREEN, LED_ON);
   delay(200);
-  digitalWrite(LED_GREEN, HIGH);
-  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_GREEN, LED_OFF);
+  digitalWrite(LED_RED, LED_ON);
   delay(200);
-  digitalWrite(LED_RED, HIGH);
-  digitalWrite(LED_YELLOW, LOW);
+  digitalWrite(LED_RED, LED_OFF);
+  digitalWrite(LED_YELLOW, LED_ON);
   delay(200);
-  digitalWrite(LED_YELLOW, HIGH);
-  digitalWrite(LED_WHITE, LOW);
+  digitalWrite(LED_YELLOW, LED_OFF);
+  digitalWrite(LED_WHITE, LED_ON);
   delay(200);
-  digitalWrite(LED_WHITE, HIGH);
+  digitalWrite(LED_WHITE, LED_OFF);
 
   // setup PWM to dim some of the LED's that may stay "always on"
   // like "power" and "bluetooth"
@@ -300,7 +304,7 @@ void loop() {
 void storeFrame (CAN_frame_t &frame) {
   if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
 #ifdef USE_LEDS
-    digitalWrite(LED_YELLOW, LOW);
+    digitalWrite(LED_YELLOW, LED_ON);
 #endif
 
 #ifdef DEBUG_BUS_RECEIVE_FF
@@ -314,14 +318,14 @@ void storeFrame (CAN_frame_t &frame) {
     dataArray[frame.MsgID][9] = 0xff;             // age to ff
 
 #ifdef USE_LEDS
-    digitalWrite(LED_YELLOW, HIGH);
+    digitalWrite(LED_YELLOW, LED_OFF);
 #endif
   }
 
   // if there is content and this is the frame we are waiting for
   else if (frame.FIR.B.DLC > 0 && frame.MsgID == isoMessage.id) {
 #ifdef USE_LEDS
-    digitalWrite(LED_WHITE, LOW);
+    digitalWrite(LED_WHITE, LED_ON);
 #endif
 
     uint8_t type = frame.data.u8[0] >> 4;         // id = first nibble
@@ -450,7 +454,7 @@ void storeFrame (CAN_frame_t &frame) {
     }
 
 #ifdef USE_LEDS
-    digitalWrite(LED_WHITE, HIGH);
+    digitalWrite(LED_WHITE, LED_OFF);
 #endif
   } else {
 #ifdef DEBUG
