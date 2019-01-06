@@ -18,10 +18,10 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#define DEBUG 1
-//#define DEBUG_BUS_RECEIVE_SPECIAL  1
-//#define DEBUG_BUS_RECEIVE_FF  1
-//#define DEBUG_BUS_RECEIVE_ISO 1
+//#define DEBUG 1
+#define DEBUG_BUS_RECEIVE_SPECIAL  1
+#define DEBUG_BUS_RECEIVE_FF  1
+#define DEBUG_BUS_RECEIVE_ISO 1
 #define DEBUG_COMMAND 1
 #define DEBUG_COMMAND_FF 1
 #define DEBUG_COMMAND_ISO 1
@@ -32,7 +32,7 @@
 #define USE_SERIAL 1
 #define USE_BLUETOOTH 1
 //#define USE_WIFI 1
-//#define USE_SOFTAP 1
+#define USE_SOFTAP 1
 
 //#define USE_LEDS 1
 
@@ -74,7 +74,8 @@
 #undef DEBUG_BUS_RECEIVE_FF
 #undef DEBUG_BUS_RECEIVE_ISO
 #undef DEBUG_COMMAND
-#undef SERIAL_BPS
+#undef DEBUG_COMMAND_FF
+#undef DEBUG_COMMAND_ISO
 #endif
 
 #ifdef USE_LEDS
