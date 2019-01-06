@@ -296,10 +296,10 @@ void loop() {
 #endif
 }
 
-/********************************************
-     frame handling function
-    see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
-*/
+/*****************************************************************************
+ * frame handling function
+ * see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
+ */
 
 void storeFrame (CAN_frame_t &frame) {
   if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
@@ -397,18 +397,18 @@ void storeFrame (CAN_frame_t &frame) {
         isoMessage.data[i] = 0;
 
       // init sequence
-      isoMessage.next = 1;                             // we are handling frame 0 now, so the next one is 1
+      isoMessage.next = 1;                         // we are handling frame 0 now, so the next one is 1
 
       // fill up with this initial first-frame data (should always be 6)
-      isoMessage.index = 0;                            // pointer at start of array
-      for (int i = 2; i < frame.FIR.B.DLC; i++) {      // was starting at 4?
+      isoMessage.index = 0;                        // pointer at start of array
+      for (int i = 2; i < frame.FIR.B.DLC; i++) {  // was starting at 4?
         if (isoMessage.index < isoMessage.length) {
           isoMessage.data[isoMessage.index++] = frame.data.u8[i];
         }
       }
     }
 
-    // consecutive frame(s) ****************************************************
+    // consecutive frame(s) **************************************************
     else if (type == 0x2) {
 #ifdef DEBUG_BUS_RECEIVE_ISO
       Serial.print("ISO NEXT:");
@@ -464,9 +464,9 @@ void storeFrame (CAN_frame_t &frame) {
   }
 }
 
-/********************************************
-   I/O functions
- ********************************************/
+/*****************************************************************************
+ * I/O functions
+ */
 
 void writeOutgoing (String o) {
   writeOutgoingSerial (o);
@@ -545,24 +545,24 @@ void readIncomingWiFi() {
   if (!wiFiIsActive) return;
   // no need to check for WL_CONNECTED, as we are the access point
   uint8_t i;
-  if (server.hasClient()) {                            // check if there are any *NEW* clients
-    for (i = 0; i < MAX_SRV_CLIENTS; i++) {            //if so, find free or disconnected spot
+  if (server.hasClient()) {                        // check if there are any *NEW* clients
+    for (i = 0; i < MAX_SRV_CLIENTS; i++) {        //if so, find free or disconnected spot
       if (!serverClients[i] || !serverClients[i].connected()) {
-        if (serverClients[i]) {                        // if not free (so disconnected)
-          serverClients[i].stop();                     // stop the client
+        if (serverClients[i]) {                    // if not free (so disconnected)
+          serverClients[i].stop();                 // stop the client
 #ifdef DEBUG_COMMAND
           Serial.print("Disconnected: ");
           Serial.println(i);
 #endif
         }
-        serverClients[i] = server.available();         // fetch the client
-        if (serverClients[i]) {                        // it should be here
+        serverClients[i] = server.available();     // fetch the client
+        if (serverClients[i]) {                    // it should be here
 #ifdef DEBUG_COMMAND
           Serial.print("New client: ");
           Serial.print(i); Serial.print(' ');
           Serial.println(serverClients[i].remoteIP());
 #endif
-        } else {                                       // if gone, oh well
+        } else {                                   // if gone, oh well
 #ifdef DEBUG_COMMAND
           Serial.println("available broken");
 #endif
@@ -570,8 +570,8 @@ void readIncomingWiFi() {
         break;
       }
     }
-    if (i >= MAX_SRV_CLIENTS) {
-      //no free/disconnected spot so reject
+    if (i >= MAX_SRV_CLIENTS) {                    //no free/disconnected spot so reject
+
       server.available().stop();
 #ifdef DEBUG_COMMAND
       Serial.println("Refused");
@@ -579,11 +579,11 @@ void readIncomingWiFi() {
     }
   }
 
-  for (i = 0; i < MAX_SRV_CLIENTS; i++) {              // check clients for data
+  for (i = 0; i < MAX_SRV_CLIENTS; i++) {          // check clients for data
     if (serverClients[i] && serverClients[i].connected()) {
-      while (serverClients[i].available()) {           // if there is data
-        char ch = serverClients[i].read();             // get it
-        if (ch == '\n' || ch == '\r') {                // buffer / process it
+      while (serverClients[i].available()) {       // if there is data
+        char ch = serverClients[i].read();         // get it
+        if (ch == '\n' || ch == '\r') {            // buffer / process it
           if (readBuffer != "") {
             processCommand(readBuffer);
             readBuffer = "";
@@ -592,9 +592,9 @@ void readIncomingWiFi() {
           readBuffer += ch;
         }
       }
-    } else {                                           // no client, or unconnected
-      if (serverClients[i]) {                          // if there is a client (so unconnected)
-        serverClients[i].stop();                       // stop the client
+    } else {                                       // no client, or unconnected
+      if (serverClients[i]) {                      // if there is a client (so unconnected)
+        serverClients[i].stop();                   // stop the client
 #ifdef DEBUG_COMMAND
         Serial.print("Disconnected: ");
         Serial.println(i);
@@ -612,7 +612,7 @@ void processCommand(String & line) {
 #endif
   COMMAND command = decodeCommand(line);
 
-  // output all buffered frames ************************************************
+  // output all buffered frames **********************************************
   if (command.cmd == 'a') {
     int count = 0;
     for (int id = 0; id < dataArraySize; id++) {
@@ -627,7 +627,7 @@ void processCommand(String & line) {
     return;
   }
 
-  // get a frame ***************************************************************
+  // get a frame *************************************************************
   else if (command.cmd == 'g') {
     if (command.id < dataArraySize) {
       writeOutgoing (bufferedFrameToString(command.id));
@@ -640,7 +640,7 @@ void processCommand(String & line) {
     return;
   }
 
-  // request an ISO-TP frame ***************************************************
+  // request an ISO-TP frame *************************************************
   else if (command.cmd == 'i') {
     // only accept this command if the requested ID belongs to an ISO-TP frame
     if (command.id < 0x700 || command.id > 0x7ff) {
@@ -651,7 +651,7 @@ void processCommand(String & line) {
       return;
     }
     // store ID
-    isoMessage.id = command.id;                       // expected ID of answer
+    isoMessage.id = command.id;                    // expected ID of answer
     if ((isoMessage.requestId = getRequestId(command.id)) == 0) { // ID to send request to
 #ifdef DEBUG_COMMAND
       Serial.println ("> com:" + String (command.id, HEX) + " has no corresponding request ID");
@@ -665,18 +665,18 @@ void processCommand(String & line) {
     for (int i = 0; i < command.requestLength; i++)
       isoMessage.request[i] = command.request[i];
 
-    CAN_frame_t frame;                                // build the CAN frame
-    frame.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
-    frame.FIR.B.RTR = CAN_no_RTR;                     // no RTR
-    frame.MsgID = isoMessage.requestId;               // set the ID
+    CAN_frame_t frame;                             // build the CAN frame
+    frame.FIR.B.FF = CAN_frame_std;                // set the type to 11 bits
+    frame.FIR.B.RTR = CAN_no_RTR;                  // no RTR
+    frame.MsgID = isoMessage.requestId;            // set the ID
     frame.FIR.B.DLC = 8; //command.requestLength + 1; // set the length. Note some ECU's like DLC 8
-    for (int i = 0; i < frame.FIR.B.DLC; i++)         // zero out frame
+    for (int i = 0; i < frame.FIR.B.DLC; i++)      // zero out frame
       frame.data.u8[i] = 0;
 
     // we are assuming here that requests are always single frame. This is formally not true, but good enough for us
     frame.data.u8[0] = (command.requestLength & 0x0f);
 
-    for (int i = 0; i < command.requestLength; i++)   // fill up the other bytes with the request
+    for (int i = 0; i < command.requestLength; i++)// fill up the other bytes with the request
       frame.data.u8[i + 1] = command.request[i];
 
     // send the frame
@@ -689,7 +689,7 @@ void processCommand(String & line) {
     return;
   }
 
-  // inject a frame via serial / BT input **************************************
+  // inject a frame via serial / BT input ************************************
   else if (command.cmd == 't') {
     CAN_frame_t frame;
     frame.MsgID = command.id;
@@ -705,7 +705,7 @@ void processCommand(String & line) {
     return;
   }
 
-  // filter (deprecated) *******************************************************
+  // filter (deprecated) *****************************************************
   else if (command.cmd == 'f')
   {
 #ifdef DEBUG_COMMAND
@@ -716,7 +716,7 @@ void processCommand(String & line) {
   }
 
 
-  // give up ******************************************************************
+  // give up *****************************************************************
   else {
 #ifdef DEBUG
     Serial.println ("> com:Unknown command " + String (command.cmd));
@@ -804,8 +804,8 @@ COMMAND decodeCommand(String &input)
   return result;
 }
 
-/********************************************
-   Converter functions
+/*****************************************************************************
+ * Converter functions
 */
 
 // convert a CAN_frame to readable hex output format
@@ -820,6 +820,7 @@ String canFrameToString(CAN_frame_t &frame)
   return dataString;
 }
 
+// convert a ISO-TP message to readable hex output format
 String isoMessageToString(ISO_MESSAGE & message)
 {
   String dataString = String(message.id, HEX) + ",";
@@ -846,9 +847,9 @@ String bufferedFrameToString (int id)
   return dataString;
 }
 
-/********************************************
-   Utility functions
-*/
+/*****************************************************************************
+ * Utility functions
+ */
 
 String getHexSimple(uint8_t num)
 {
@@ -882,11 +883,11 @@ unsigned int hexToDec(String hexString) {
   return decValue;
 }
 
-/********************************************
-   ZOE CAN computer related functions
-*/
+/*****************************************************************************
+ * ZOE CAN computer related functions
+ */
 uint16_t getRequestId(uint16_t responseId)
-{ //from ECU id        // to ECU id
+{                     // from ECU id   to ECU id
   if      (responseId == 0x7ec) return 0x7e4; // EVC
   else if (responseId == 0x7da) return 0x7ca; // TCU
   else if (responseId == 0x7bb) return 0x79b; // LBC
