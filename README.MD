@@ -1,3 +1,4 @@
+```
 Boot device with USB connected. Hookup to a terminal emulator, Bluetooth
 terminal emulator or Telnet over WiFi.
 
@@ -47,3 +48,4 @@ Note: For ISO-TP: multiframe a multiframe can be received but commands are now
 only supported in single frame, so a maximum of 6 bytes
 
 For maximum speed use n100,0001000000 (Android)
+```
