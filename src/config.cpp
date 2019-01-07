@@ -7,7 +7,7 @@ void setConfigDefault () {
   config.version = 1;                             // change if length of config changes
   config.mode_serial = 1;
   config.mode_bluetooth = 1;
-  config.mode_wifi = 1;
+  config.mode_wifi = WIFI_SOFTAP;
   config.mode_debug = 0xff;
   config.mode_leds = 0;
   strcpy (config.name_bluetooth, "CANSee");
