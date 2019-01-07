@@ -1,55 +1,47 @@
 /*
-    CanSee
-    The firmware to the DIY, superfase, ESP32 based comapanion to CANZE dongle
+CanSee
+The firmware to the DIY, superfase, ESP32 based comapanion to CANZE dongle
 
-    Copyright (C) 2019 - The CanZE Team
-    http://canze.fisch.lu
+Copyright (C) 2019 - The CanZE Team
+http://canze.fisch.lu
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or any
-    later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or any
+later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-//#define DEBUG 1
-#define DEBUG_BUS_RECEIVE_SPECIAL  1
-#define DEBUG_BUS_RECEIVE_FF  1
-#define DEBUG_BUS_RECEIVE_ISO 1
-#define DEBUG_COMMAND 1
-#define DEBUG_COMMAND_FF 1
-#define DEBUG_COMMAND_ISO 1
+#define DEBUG_BUS_RECEIVE_FF  0x01
+#define DEBUG_BUS_RECEIVE_ISO 0x02
+#define DEBUG_COMMAND         0x04
+#define DEBUG_COMMAND_FF      0x08
+#define DEBUG_COMMAND_ISO     0x10
 
 #define VERSION "001"
 
 #define SERIAL_BPS 115200
-#define USE_SERIAL 1
-#define USE_BLUETOOTH 1
-//#define USE_WIFI 1
-#define USE_SOFTAP 1
-
-//#define USE_LEDS 1
 
 /* board is a CP2102 like this
-    https://www.ebay.com.au/itm/262903668612 or
-    https://www.tinytronics.nl/shop/en/communication/network/esp32-wi-fi-and-bluetooth-board-cp2102
+https://www.ebay.com.au/itm/262903668612 or
+https://www.tinytronics.nl/shop/en/communication/network/esp32-wi-fi-and-bluetooth-board-cp2102
 
-    My board: DOIT ESP32 DEVKIT V1
+My board: DOIT ESP32 DEVKIT V1
 
-    ESP32 GPIO5 - CAN CTX
-    ESP32 GPIO4 - CAN CRX
+ESP32 GPIO5 - CAN CTX
+ESP32 GPIO4 - CAN CRX
 
-    ESP32 GPIO26  white  LED with 3.3 kO resistor
-    ESP32 GPIO27  yellow LED with 120 O  resistor
-    ESP32 GPIO32  red    LED with 120 O  resistor
-    ESP32 GPIO33  green  LED with 120 O  resistor
-    ESP32 GPIO25  blue   LED with 120 O  resistor
+ESP32 GPIO26  white  LED with 3.3 kO resistor
+ESP32 GPIO27  yellow LED with 120 O  resistor
+ESP32 GPIO32  red    LED with 120 O  resistor
+ESP32 GPIO33  green  LED with 120 O  resistor
+ESP32 GPIO25  blue   LED with 120 O  resistor
 
 */
 
@@ -69,16 +61,6 @@
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
-#ifndef DEBUG
-#undef DEBUG_BUS_RECEIVE_SPECIAL
-#undef DEBUG_BUS_RECEIVE_FF
-#undef DEBUG_BUS_RECEIVE_ISO
-#undef DEBUG_COMMAND
-#undef DEBUG_COMMAND_FF
-#undef DEBUG_COMMAND_ISO
-#endif
-
-#ifdef USE_LEDS
 #define LED_WHITE 26    // ISO-TP frame incoming
 #define LED_YELLOW 27   // free fame incoming
 #define LED_RED 32      // power
@@ -86,25 +68,18 @@
 #define LED_BLUE 25     // bluetooth connected
 #define LED_ON LOW      // active LOW
 #define LED_OFF HIGH
-#endif
 
-#ifndef USE_WIFI
-#undef USE_SOFTAP
-#endif
+CONFIG *cansee_config;
 
 // Bluetooth *****************************************************************
-#ifdef USE_BLUETOOTH
 BluetoothSerial SerialBT;
-#endif
 
 // WiFi *** (sensitive data in config.h, do not include in the repository! ***
-#ifdef USE_WIFI
 #define MAX_SRV_CLIENTS 1
 boolean wiFiIsActive = false;
 
 WiFiServer server(35000);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
-#endif
 
 // Command *******************************************************************
 // structure that defines a textual incoming command
@@ -114,8 +89,9 @@ typedef struct
   uint32_t id = 0;
   uint8_t request[8];
   uint8_t requestLength = 0;
-  uint8_t reply[8];
+  uint8_t reply[32];
   uint8_t replyLength = 0;
+  char line[48];
 } COMMAND;
 
 // CANbus ********************************************************************
@@ -153,75 +129,90 @@ ISO_MESSAGE isoMessage;
 String readBuffer = "";
 
 void setup() {
-#ifdef USE_LEDS
-  // setup LED's
-  pinMode(LED_WHITE, OUTPUT);
-  pinMode(LED_YELLOW, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_BLUE, OUTPUT);
+  Serial.begin(SERIAL_BPS);                         // init serial
+  Serial.println ("");
+  Serial.println ("");
+  Serial.println ("CANSee starting...");
 
-  // they are active low ...
-  digitalWrite(LED_WHITE, LED_OFF);
-  digitalWrite(LED_YELLOW, LED_OFF);
-  digitalWrite(LED_RED, LED_OFF);
-  digitalWrite(LED_GREEN, LED_OFF);
-  digitalWrite(LED_BLUE, LED_OFF);
+  delay (500);                                      // give user chance to press BUT
+  pinMode (0, INPUT);
+  if (!digitalRead (0)) {                           // if pressed
+    Serial.println("Reset config...");
+    setConfigToEeprom (true);
+  }
+  cansee_config = getConfigFromEeprom ();           // invalid config will reset too
 
-  // startup sequence
-  digitalWrite(LED_BLUE, LED_ON);
-  delay(200);
-  digitalWrite(LED_BLUE, LED_OFF);
-  digitalWrite(LED_GREEN, LED_ON);
-  delay(200);
-  digitalWrite(LED_GREEN, LED_OFF);
-  digitalWrite(LED_RED, LED_ON);
-  delay(200);
-  digitalWrite(LED_RED, LED_OFF);
-  digitalWrite(LED_YELLOW, LED_ON);
-  delay(200);
-  digitalWrite(LED_YELLOW, LED_OFF);
-  digitalWrite(LED_WHITE, LED_ON);
-  delay(200);
-  digitalWrite(LED_WHITE, LED_OFF);
+  if (cansee_config->mode_debug) {
+    Serial.print   ("Version:   "); Serial.println (VERSION);
+    Serial.println ("Serial:    " + String (cansee_config->mode_serial   , HEX));
+    Serial.println ("Bluetooth: " + String (cansee_config->mode_bluetooth, HEX));
+    Serial.println ("WiFi:      " + String (cansee_config->mode_wifi     , HEX));
+    Serial.println ("Leds:      " + String (cansee_config->mode_leds     , HEX));
+    Serial.println ("Debug:     " + String (cansee_config->mode_debug    , HEX));
+  }
+  if (!cansee_config->mode_serial && !cansee_config->mode_debug) Serial.end();
 
-  // setup PWM to dim some of the LED's that may stay "always on"
-  // like "power" and "bluetooth"
-  ledcSetup(0, 5000, 8);
-  ledcWrite(0, 250);
+  if (cansee_config->mode_leds) {
+    // setup LED's
+    pinMode(LED_WHITE, OUTPUT);
+    pinMode(LED_YELLOW, OUTPUT);
+    pinMode(LED_RED, OUTPUT);
+    pinMode(LED_GREEN, OUTPUT);
+    pinMode(LED_BLUE, OUTPUT);
 
-  // turn RED (=power) immediately on
-  ledcAttachPin(LED_RED, 0);
-#endif
+    // they are active low ...
+    digitalWrite(LED_WHITE, LED_OFF);
+    digitalWrite(LED_YELLOW, LED_OFF);
+    digitalWrite(LED_RED, LED_OFF);
+    digitalWrite(LED_GREEN, LED_OFF);
+    digitalWrite(LED_BLUE, LED_OFF);
 
+    // startup sequence
+    digitalWrite(LED_BLUE, LED_ON);
+    delay(200);
+    digitalWrite(LED_BLUE, LED_OFF);
+    digitalWrite(LED_GREEN, LED_ON);
+    delay(200);
+    digitalWrite(LED_GREEN, LED_OFF);
+    digitalWrite(LED_RED, LED_ON);
+    delay(200);
+    digitalWrite(LED_RED, LED_OFF);
+    digitalWrite(LED_YELLOW, LED_ON);
+    delay(200);
+    digitalWrite(LED_YELLOW, LED_OFF);
+    digitalWrite(LED_WHITE, LED_ON);
+    delay(200);
+    digitalWrite(LED_WHITE, LED_OFF);
 
-#if defined (DEBUG) || defined (USE_SERIAL)
-  Serial.begin(SERIAL_BPS);                        // init serial
-#endif
-#ifdef DEBUG
-  Serial.println("");
-  Serial.println("");
-  Serial.println("CANSee starting ...");
-#endif
+    // setup PWM to dim some of the LED's that may stay "always on"
+    // like "power" and "bluetooth"
+    ledcSetup(0, 5000, 8);
+    ledcWrite(0, 250);
 
-#ifdef USE_BLUETOOTH
-  SerialBT.begin("CANSee");                        // init Bluetooth serial
-#endif
+    // turn RED (=power) immediately on
+    ledcAttachPin(LED_RED, 0);
+  }
 
-#ifdef USE_WIFI
-#ifdef USE_SOFTAP
-  WiFi.softAP (ssid, password);                    // init WiFi access point
-  wiFiIsActive = true;                             // no need to check for active network
-#ifdef DEBUG
-  IPAddress IP = WiFi.softAPIP ();
-  Serial.print ("AP IP address: ");
-  Serial.println (IP);
-#endif
-#else
-  WiFi.begin(ssid, password);                      // init WiFi station. Cheking is done in main loop
-#endif
-  server.begin ();                                 // start the server
-#endif
+  if (cansee_config->mode_bluetooth) {
+    if (cansee_config->mode_debug) Serial.println("Bluetooth " + String (cansee_config->name_bluetooth) + " starting ...");
+    SerialBT.begin(cansee_config->name_bluetooth); // init Bluetooth serial, no password in current framework
+  }
+
+  if (cansee_config->mode_wifi == WIFI_SOFTAP) {
+    if (cansee_config->mode_debug) Serial.println("Wifi AP " + String (cansee_config->ssid_ap) + " starting ...");
+    WiFi.softAP (cansee_config->ssid_ap, cansee_config->password_ap);                    // init WiFi access point
+    wiFiIsActive = true;                             // no need to check for active network
+    if (cansee_config->mode_debug) {
+      IPAddress IP = WiFi.softAPIP ();
+      Serial.print ("AP IP address: ");
+      Serial.println (IP);
+    }
+    server.begin ();                                 // start the server
+  } else if (cansee_config->mode_wifi == WIFI_STATION) {
+    if (cansee_config->mode_debug) Serial.println("Wifi ST " + String (cansee_config->ssid_station) + " starting ...");
+    WiFi.begin(cansee_config->ssid_station, cansee_config->password_station);                      // init WiFi station. Cheking is done in main loop
+    server.begin ();                                 // start the server
+  }
 
   CAN_cfg.speed = CAN_SPEED_500KBPS;               // init the CAN bus (pins and baudrate)
   CAN_cfg.tx_pin_id = GPIO_NUM_5;
@@ -229,17 +220,14 @@ void setup() {
   // create a generic RTOS queue for CAN receiving, with 10 positions
   CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
   if (CAN_cfg.rx_queue == 0) {
-#ifdef DEBUG
-    Serial.println("Can't create CANbus buffer. Stopping");
-#endif
+    if (cansee_config->mode_debug) Serial.println("Can't create CANbus buffer. Stopping");
     while (1);
   }
+  if (cansee_config->mode_debug) Serial.println("CAN starting ...");
   ESP32Can.CANInit();                              // initialize CAN Module
 
   for (int id = 0; id < dataArraySize; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
-    for (int i = 0; i < 9; i++) {
-      dataArray[id][i] = 0;
-    }
+    for (int i = 0; i < 9; i++) dataArray[id][i] = 0;
     dataArray[id][9] = 0xff;
   }
 }
@@ -247,26 +235,21 @@ void setup() {
 
 void loop() {
 
-#ifdef USE_LEDS
-  if (SerialBT.hasClient())
-    ledcAttachPin(LED_BLUE, 0);
-  else
-  {
-    pinMatrixOutDetach(LED_BLUE, false, false);
-    // this method is not yet in the actual build!
-    //ledcDetachPin(LED_BLUE);
+  if (cansee_config->mode_leds) {
+    if (SerialBT.hasClient())
+      ledcAttachPin(LED_BLUE, 0);
+    else
+    {
+      pinMatrixOutDetach(LED_BLUE, false, false);
+      // this method is not yet in the actual build!
+      //ledcDetachPin(LED_BLUE);
+    }
   }
-#endif
 
   // 1. receive next CAN frame from queue
   // removed 3 * portTICK_PERIOD_MS to not block the code
   CAN_frame_t rx_frame;
   if (xQueueReceive (CAN_cfg.rx_queue, &rx_frame, (TickType_t)0) == pdTRUE) {
-#ifdef DEBUG_BUS_RECEIVE_SPECIAL
-    if (rx_frame.MsgID == 0x5d7) {
-      Serial.print (canFrameToString (rx_frame));
-    }
-#endif
     storeFrame (rx_frame);
   }
 
@@ -277,66 +260,58 @@ void loop() {
   // to do
 
   // 4. check WiFi network status if in station mode
-#ifdef USE_WIFI
-#ifndef USE_SOFTAP
-  if (WiFi.status() == WL_CONNECTED) {            // check if connected
-    if (!wiFiIsActive) {
-#ifdef DEBUG
-      IPAddress IP = WiFi.localIP ();
-      Serial.print ("IP address: ");
-      Serial.println (IP);
-#endif
-      wiFiIsActive = true;
-    }
-  } else {
-    if (wiFiIsActive) {
-      wiFiIsActive = false;
+  if (cansee_config->mode_wifi == WIFI_STATION) {
+    if (WiFi.status() == WL_CONNECTED) {            // check if connected
+      if (!wiFiIsActive) {
+        if (cansee_config->mode_debug) {
+          IPAddress IP = WiFi.localIP ();
+          Serial.print ("IP address: ");
+          Serial.println (IP);
+        }
+        wiFiIsActive = true;
+      }
+    } else {
+      if (wiFiIsActive) {
+        wiFiIsActive = false;
+      }
     }
   }
-#endif
-#endif
 }
 
 /*****************************************************************************
- * frame handling function
- * see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
- */
+* frame handling function
+* see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
+*/
 
 void storeFrame (CAN_frame_t &frame) {
   if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
-#ifdef USE_LEDS
-    digitalWrite(LED_YELLOW, LED_ON);
-#endif
+    if (cansee_config->mode_leds) digitalWrite(LED_YELLOW, LED_ON);
 
-#ifdef DEBUG_BUS_RECEIVE_FF
-    Serial.print ("FF:");
-    Serial.print(canFrameToString(frame));
-#endif
+    if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
+      Serial.print ("FF:");
+      Serial.print(canFrameToString(frame));
+    }
 
     for (int i = 0; i < 8; i++)                   // store a copy
-      dataArray[frame.MsgID][i] = frame.data.u8[i];
+    dataArray[frame.MsgID][i] = frame.data.u8[i];
     dataArray[frame.MsgID][8] = frame.FIR.B.DLC;  // and the length
     dataArray[frame.MsgID][9] = 0xff;             // age to ff
 
-#ifdef USE_LEDS
-    digitalWrite(LED_YELLOW, LED_OFF);
-#endif
+    if (cansee_config->mode_leds) digitalWrite(LED_YELLOW, LED_OFF);
   }
 
   // if there is content and this is the frame we are waiting for
   else if (frame.FIR.B.DLC > 0 && frame.MsgID == isoMessage.id) {
-#ifdef USE_LEDS
-    digitalWrite(LED_WHITE, LED_ON);
-#endif
+    if (cansee_config->mode_leds) digitalWrite(LED_WHITE, LED_ON);
 
     uint8_t type = frame.data.u8[0] >> 4;         // id = first nibble
 
     // single frame answer *****************************************************
     if (type == 0x0) {
-#ifdef DEBUG_BUS_RECEIVE_ISO
-      Serial.print(">>ISO SING:");
-      Serial.print(canFrameToString(frame));
-#endif
+      if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
+        Serial.print(">>ISO SING:");
+        Serial.print(canFrameToString(frame));
+      }
 
       uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
       if (messageLength > 7) messageLength = 7;  // this should never happen
@@ -344,7 +319,7 @@ void storeFrame (CAN_frame_t &frame) {
 
       // clear data buffer
       for (int i = 0; i < messageLength; i++)
-        isoMessage.data[i] = 0;
+      isoMessage.data[i] = 0;
 
       // fill up with this initial first-frame data (should always be 6)
       isoMessage.index = 0;                            // pointer at start of array
@@ -363,10 +338,10 @@ void storeFrame (CAN_frame_t &frame) {
 
     // first frame of a multi-framed message ***********************************
     else if (type == 0x1) {
-#ifdef DEBUG_BUS_RECEIVE_ISO
-      Serial.print("ISO FRST:");
-      Serial.print(canFrameToString(frame));
-#endif
+      if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
+        Serial.print("ISO FRST:");
+        Serial.print(canFrameToString(frame));
+      }
 
       // start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
       CAN_frame_t flow;
@@ -395,7 +370,7 @@ void storeFrame (CAN_frame_t &frame) {
 
       // clear data buffer
       for (int i = 0; i < messageLength; i++)
-        isoMessage.data[i] = 0;
+      isoMessage.data[i] = 0;
 
       // init sequence
       isoMessage.next = 1;                         // we are handling frame 0 now, so the next one is 1
@@ -411,10 +386,10 @@ void storeFrame (CAN_frame_t &frame) {
 
     // consecutive frame(s) **************************************************
     else if (type == 0x2) {
-#ifdef DEBUG_BUS_RECEIVE_ISO
-      Serial.print("ISO NEXT:");
-      Serial.print(canFrameToString(frame));
-#endif
+      if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
+        Serial.print("ISO NEXT:");
+        Serial.print(canFrameToString(frame));
+      }
 
       uint8_t sequence = frame.data.u8[0] & 0x0f;
       if (isoMessage.next == sequence) {
@@ -432,42 +407,30 @@ void storeFrame (CAN_frame_t &frame) {
         {
           // output the data
           String dataString = isoMessageToString(isoMessage);
-#ifdef DEBUG_BUS_RECEIVE_ISO
-          Serial.print(">>ISO MSG:");
-#endif
+          if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) Serial.print(">>ISO MSG:");
           writeOutgoing(dataString);
 
           // cancel this message
           isoMessage.id = 0xffff;
         }
       } else {
-#ifdef DEBUG
-        Serial.println("E:ISO Out of sequence, resetting");
-#endif
+        if (cansee_config->mode_debug) Serial.println("E:ISO Out of sequence, resetting");
         //writeOutgoing("fff,\n");
         isoMessage.id = 0xffff;
       }
     } else {
-#ifdef DEBUG
-      Serial.println("E:ISO ignoring unknown frame type:" + String (type));
-#endif
-      //writeOutgoing("fff,\n");
+      if (cansee_config->mode_debug) Serial.println("E:ISO ignoring unknown frame type:" + String (type));
     }
 
-#ifdef USE_LEDS
-    digitalWrite(LED_WHITE, LED_OFF);
-#endif
+    if (cansee_config->mode_leds) digitalWrite(LED_WHITE, LED_OFF);
   } else {
-#ifdef DEBUG
-    Serial.println("E:ISO frame of unrequested id:" + String(frame.MsgID, HEX));
-#endif
-    //writeOutgoing("fff,\n");
+    if (cansee_config->mode_debug) Serial.println("E:ISO frame of unrequested id:" + String(frame.MsgID, HEX));
   }
 }
 
 /*****************************************************************************
- * I/O functions
- */
+* I/O functions
+*/
 
 void writeOutgoing (String o) {
   writeOutgoingSerial (o);
@@ -476,33 +439,29 @@ void writeOutgoing (String o) {
 }
 
 void writeOutgoingSerial (String o) {
-#if defined (DEBUG) || defined (USE_SERIAL)
-  Serial.print (o);
-#endif
+  if (cansee_config->mode_serial || cansee_config->mode_debug) Serial.print (o);
 }
 
 void writeOutgoingBluetooth (String o) {
-#ifdef USE_BLUETOOTH
-  SerialBT.print (o);
-#endif
+  if (cansee_config->mode_bluetooth) SerialBT.print (o);
 }
 
 void writeOutgoingWiFi (String o) {
-#ifdef USE_WIFI
-  if (!wiFiIsActive) return;
-  char buf[1024];
-  unsigned int len;
-  o.replace ("\n", "\n\r");
-  if ((len = o.length()) > 1024) len = 1024;
-  o.toCharArray(buf, len);
-  for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
-    if (serverClients[i] && serverClients[i].connected()) {
-      //serverClients[i].write(o);
-      serverClients[i].write(buf, len);
-      //delay(1);
+  if (cansee_config->mode_wifi) {
+    if (!wiFiIsActive) return;
+    char buf[1024];
+    unsigned int len;
+    // o.replace ("\n", "\n\r");
+    if ((len = o.length()) > 1024) len = 1024;
+    o.toCharArray(buf, len);
+    for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
+      if (serverClients[i] && serverClients[i].connected()) {
+        //serverClients[i].write(o);
+        serverClients[i].write(buf, len);
+        //delay(1);
+      }
     }
   }
-#endif
 }
 
 void readIncoming() {
@@ -512,22 +471,23 @@ void readIncoming() {
 }
 
 void readIncomingSerial() {
-#if defined (DEBUG) || defined (USE_SERIAL)
-  if (Serial.available()) {
-    char ch = Serial.read();
-    if (ch == '\n' || ch == '\r') {
-      if (readBuffer != "") {
-        processCommand(readBuffer);
-        readBuffer = "";
+  if (cansee_config->mode_serial || cansee_config->mode_debug) {
+    if (Serial.available()) {
+      char ch = Serial.read();
+      if (ch == '\n' || ch == '\r') {
+        if (readBuffer != "") {
+          processCommand(readBuffer);
+          readBuffer = "";
+        }
+      } else {
+        readBuffer += ch;
       }
-    } else {
-      readBuffer += ch;
     }
   }
-#endif
 }
 
 void readIncomingBluetooth() {
+if (cansee_config->mode_bluetooth) {
   if (SerialBT.available()) {
     char ch = SerialBT.read();
     if (ch == '\n' || ch == '\r') {
@@ -540,123 +500,111 @@ void readIncomingBluetooth() {
     }
   }
 }
+}
 
 void readIncomingWiFi() {
-#ifdef USE_WIFI
-  if (!wiFiIsActive) return;
-  // no need to check for WL_CONNECTED, as we are the access point
-  uint8_t i;
-  if (server.hasClient()) {                        // check if there are any *NEW* clients
-    for (i = 0; i < MAX_SRV_CLIENTS; i++) {        //if so, find free or disconnected spot
-      if (!serverClients[i] || !serverClients[i].connected()) {
-        if (serverClients[i]) {                    // if not free (so disconnected)
-          serverClients[i].stop();                 // stop the client
-#ifdef DEBUG_COMMAND
-          Serial.print("Disconnected: ");
-          Serial.println(i);
-#endif
-        }
-        serverClients[i] = server.available();     // fetch the client
-        if (serverClients[i]) {                    // it should be here
-#ifdef DEBUG_COMMAND
-          Serial.print("New client: ");
-          Serial.print(i); Serial.print(' ');
-          Serial.println(serverClients[i].remoteIP());
-#endif
-        } else {                                   // if gone, oh well
-#ifdef DEBUG_COMMAND
-          Serial.println("available broken");
-#endif
-        }
-        break;
-      }
-    }
-    if (i >= MAX_SRV_CLIENTS) {                    //no free/disconnected spot so reject
-
-      server.available().stop();
-#ifdef DEBUG_COMMAND
-      Serial.println("Refused");
-#endif
-    }
-  }
-
-  for (i = 0; i < MAX_SRV_CLIENTS; i++) {          // check clients for data
-    if (serverClients[i] && serverClients[i].connected()) {
-      while (serverClients[i].available()) {       // if there is data
-        char ch = serverClients[i].read();         // get it
-        if (ch == '\n' || ch == '\r') {            // buffer / process it
-          if (readBuffer != "") {
-            processCommand(readBuffer);
-            readBuffer = "";
+  if (cansee_config->mode_wifi) {
+    if (!wiFiIsActive) return;
+    // no need to check for WL_CONNECTED, as we are the access point
+    uint8_t i;
+    if (server.hasClient()) {                        // check if there are any *NEW* clients
+      for (i = 0; i < MAX_SRV_CLIENTS; i++) {        //if so, find free or disconnected spot
+        if (!serverClients[i] || !serverClients[i].connected()) {
+          if (serverClients[i]) {                    // if not free (so disconnected)
+            serverClients[i].stop();                 // stop the client
+            if (cansee_config->mode_debug & DEBUG_COMMAND) {
+              Serial.print("Disconnected: ");
+              Serial.println(i);
+            }
           }
-        } else {
-          readBuffer += ch;
+          serverClients[i] = server.available();     // fetch the client
+          if (serverClients[i]) {                    // it should be here
+            if (cansee_config->mode_debug & DEBUG_COMMAND) {
+              Serial.print("New client: ");
+              Serial.print(i); Serial.print(' ');
+              Serial.println(serverClients[i].remoteIP());
+            }
+          } else {                                   // if gone, oh well
+            if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("available broken");
+          }
+          break;
         }
       }
-    } else {                                       // no client, or unconnected
-      if (serverClients[i]) {                      // if there is a client (so unconnected)
-        serverClients[i].stop();                   // stop the client
-#ifdef DEBUG_COMMAND
-        Serial.print("Disconnected: ");
-        Serial.println(i);
-#endif
+      if (i >= MAX_SRV_CLIENTS) {                    //no free/disconnected spot so reject
+
+        server.available().stop();
+        if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("Refused");
+      }
+    }
+
+    for (i = 0; i < MAX_SRV_CLIENTS; i++) {          // check clients for data
+      if (serverClients[i] && serverClients[i].connected()) {
+        while (serverClients[i].available()) {       // if there is data
+          char ch = serverClients[i].read();         // get it
+          if (ch == '\n' || ch == '\r') {            // buffer / process it
+            if (readBuffer != "") {
+              processCommand(readBuffer);
+              readBuffer = "";
+            }
+          } else {
+            readBuffer += ch;
+          }
+        }
+      } else {                                       // no client, or unconnected
+        if (serverClients[i]) {                      // if there is a client (so unconnected)
+          serverClients[i].stop();                   // stop the client
+          if (cansee_config->mode_debug & DEBUG_COMMAND) {
+            Serial.print("Disconnected: ");
+            Serial.println(i);
+          }
+        }
       }
     }
   }
-#endif
 }
 
 // execute a command
-void processCommand(String & line) {
-#ifdef DEBUG_COMMAND
-  Serial.println("< com:" + line);
-#endif
-  COMMAND command = decodeCommand(line);
+void processCommand(String &line) {
+  if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + line);
+  COMMAND command = decodeCommand(line);  // watch out, passe dby reference, so eaten
 
-  // output all buffered frames **********************************************
-  if (command.cmd == 'a') {
-    int count = 0;
-    for (int id = 0; id < dataArraySize; id++) {
-      if (dataArray[id][9]) { // print length 0 frames, but do not print timeout frames
-        writeOutgoing (bufferedFrameToString (id)); // includes \n
-        count++;
+  switch (command.cmd) {
+
+    // output all buffered frames **********************************************
+    case 'a': {
+      int count = 0;
+      for (int id = 0; id < dataArraySize; id++) {
+        if (dataArray[id][9]) { // print length 0 frames, but do not print timeout frames
+          writeOutgoing (bufferedFrameToString (id)); // includes \n
+          count++;
+        }
       }
+      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("> fcn:" + String (count));
     }
-#ifdef DEBUG_COMMAND
-    Serial.println("> fcn:" + String (count));
-#endif
-    return;
-  }
+    break;
 
-  // get a frame *************************************************************
-  else if (command.cmd == 'g') {
+    // get a frame *************************************************************
+    case 'g':
     if (command.id < dataArraySize) {
       writeOutgoing (bufferedFrameToString(command.id));
     } else {
-#ifdef DEBUG_COMMAND
-      Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
-#endif
+      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
       writeOutgoing (bufferedFrameToString(0));
     }
-    return;
-  }
+    break;
 
-  // request an ISO-TP frame *************************************************
-  else if (command.cmd == 'i') {
+    // request an ISO-TP frame *************************************************
+    case 'i':
     // only accept this command if the requested ID belongs to an ISO-TP frame
     if (command.id < 0x700 || command.id > 0x7ff) {
-#ifdef DEBUG
-      Serial.println ("E:ID out of bounds (0x700 - 0x7ff)");
-#endif
+      if (cansee_config->mode_debug) Serial.println ("E:ID out of bounds (0x700 - 0x7ff)");
       writeOutgoing (String (command.id, HEX) + "\n");
       return;
     }
     // store ID
     isoMessage.id = command.id;                    // expected ID of answer
     if ((isoMessage.requestId = getRequestId(command.id)) == 0) { // ID to send request to
-#ifdef DEBUG_COMMAND
-      Serial.println ("> com:" + String (command.id, HEX) + " has no corresponding request ID");
-#endif
+      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:" + String (command.id, HEX) + " has no corresponding request ID");
       writeOutgoing (String (command.id, HEX) + "\n");
       return;
     }
@@ -664,7 +612,7 @@ void processCommand(String & line) {
     isoMessage.requestLength = command.requestLength;
     if (isoMessage.requestLength > 7) isoMessage.requestLength = 7; // this should never happen
     for (int i = 0; i < command.requestLength; i++)
-      isoMessage.request[i] = command.request[i];
+    isoMessage.request[i] = command.request[i];
 
     CAN_frame_t frame;                             // build the CAN frame
     frame.FIR.B.FF = CAN_frame_std;                // set the type to 11 bits
@@ -672,63 +620,96 @@ void processCommand(String & line) {
     frame.MsgID = isoMessage.requestId;            // set the ID
     frame.FIR.B.DLC = 8; //command.requestLength + 1; // set the length. Note some ECU's like DLC 8
     for (int i = 0; i < frame.FIR.B.DLC; i++)      // zero out frame
-      frame.data.u8[i] = 0;
+    frame.data.u8[i] = 0;
 
     // we are assuming here that requests are always single frame. This is formally not true, but good enough for us
     frame.data.u8[0] = (command.requestLength & 0x0f);
 
     for (int i = 0; i < command.requestLength; i++)// fill up the other bytes with the request
-      frame.data.u8[i + 1] = command.request[i];
+    frame.data.u8[i + 1] = command.request[i];
 
     // send the frame
-#ifdef DEBUG_COMMAND_ISO
-    Serial.print ("> com:Sending ISOTP request:");
-    Serial.print (canFrameToString (frame));
-#endif
+    if (cansee_config->mode_debug & DEBUG_COMMAND_ISO) {
+      Serial.print ("> com:Sending ISOTP request:");
+      Serial.print (canFrameToString (frame));
+    }
     ESP32Can.CANWriteFrame (&frame);
-        // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
-    return;
-  }
+    // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
+    break;
 
-  // inject a frame via serial / BT input ************************************
-  else if (command.cmd == 't') {
-    CAN_frame_t frame;
-    frame.MsgID = command.id;
-    frame.FIR.B.DLC = command.requestLength;
-    for (int i = 0; i < command.requestLength; i++)
+    // inject a frame via serial / BT input ************************************
+    case 't': {
+      CAN_frame_t frame;
+      frame.MsgID = command.id;
+      frame.FIR.B.DLC = command.requestLength;
+      for (int i = 0; i < command.requestLength; i++)
       frame.data.u8[i] = command.request[i];
-#ifdef DEBUG_COMMAND
-    Serial.print ("> com:Injecting " + canFrameToString (frame));
-#endif
-    storeFrame(frame);
-    // storeframe will output if free frame or ISO-TP Single
-    // writeOutgoing (String (command.id, HEX) + "\n");
-    return;
-  }
+      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:Injecting " + canFrameToString (frame));
+      storeFrame(frame);
+      // storeframe will output if free frame or ISO-TP Single
+      // writeOutgoing (String (command.id, HEX) + "\n");
+    }
+    break;
 
-  // filter (deprecated) *****************************************************
-  else if (command.cmd == 'f')
-  {
-#ifdef DEBUG_COMMAND
-    Serial.println ("> com:Filter " + String (command.id, HEX));
-#endif
+    // filter (deprecated) *****************************************************
+    case 'f':
+    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:Filter " + String (command.id, HEX));
     writeOutgoing (String (command.id, HEX) + "\n");
-    return;
-  }
+    break;
+
+    // config (see config.cpp) *************************************************
+    case 'n':
+    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:config " + String (command.id, HEX));
+    switch (command.id) {
+      case 0x100: // set mode flags
+      cansee_config->mode_serial     = command.request [0];
+      cansee_config->mode_bluetooth  = command.request [1];
+      cansee_config->mode_wifi       = command.request [2];
+      cansee_config->mode_leds       = command.request [3];
+      cansee_config->mode_debug      = command.request [4];
+      break;
+      case 0x200:
+      strncpy (cansee_config->name_bluetooth, command.line + 5, sizeof (cansee_config->name_bluetooth));
+      break;
+      case 0x201:
+      strncpy (cansee_config->pin_bluetooth, command.line + 5, sizeof (cansee_config->pin_bluetooth));
+      break;
+      case 0x300:
+      strncpy (cansee_config->ssid_ap, command.line + 5, sizeof (cansee_config->ssid_ap));
+      break;
+      case 0x301:
+      strncpy (cansee_config->password_ap, command.line + 5, sizeof (cansee_config->password_ap));
+      break;
+      case 0x400:
+      strncpy (cansee_config->ssid_station, command.line + 5, sizeof (cansee_config->ssid_station));
+      Serial.println (sizeof (cansee_config->ssid_station));
+      Serial.println (command.line);
+      Serial.println (cansee_config->ssid_station);
+      break;
+      case 0x401:
+      strncpy (cansee_config->password_station, command.line + 5, sizeof (cansee_config->password_station));
+      break;
+    }
+    setConfigToEeprom (false);
+    writeOutgoing (String (command.id, HEX) + "\n");
+    break;
 
 
-  // give up *****************************************************************
-  else {
-#ifdef DEBUG
-    Serial.println ("> com:Unknown command " + String (command.cmd));
-#endif
+    // reset *******************************************************************
+    case 'z':
+    ESP.restart();
+    break;
+
+    // give up *****************************************************************
+    default:
+    if (cansee_config->mode_debug) Serial.println ("> com:Unknown command " + String (command.cmd));
     writeOutgoing("fff,\n");
-    return;
+    break;
   }
 }
 
 // parse a string into a command
-COMMAND decodeCommand(String &input)
+COMMAND decodeCommand (String &input)
 {
   COMMAND result;
 
@@ -739,6 +720,7 @@ COMMAND decodeCommand(String &input)
 
   // trim whitespaces
   input.trim();
+  strncpy (result.line, input.c_str(), sizeof (result.line));
 
   // stop if input is empty
   if (input.length() == 0) return result;
@@ -748,56 +730,45 @@ COMMAND decodeCommand(String &input)
   input.remove(0, 1);
 
   // if there is something more,
-  if (input.length() != 0)
-  {
+  if (input.length() != 0) {
     // get the ID
     char ch;
     String id = "";
-    do
-    {
+    do {
       ch = input.charAt(0);
       if (ch != ',') id += ch;
       input.remove(0, 1);
-    }
-    while (input.length() != 0 && ch != ',');
+    } while (input.length() != 0 && ch != ',');
     result.id = hexToDec(id);
   }
 
   // if there is something more,
-  if (input.length() != 0)
-  {
+  if (input.length() != 0) {
     // get the REQUEST
     char ch;
     String request = "";
-    do
-    {
+    do {
       ch = input.charAt(0);
       if (ch != ',') request += ch;
       input.remove(0, 1);
-    }
-    while (input.length() != 0 && ch != ',');
-    for (int i = 0; i < request.length() && result.requestLength < 8; i += 2) // check for overflow
-    {
+    } while (input.length() != 0 && ch != ',');
+    for (int i = 0; i < request.length() && result.requestLength < 8; i += 2) {// check for overflow
       result.request[result.requestLength] = hexToDec(request.substring(i, i + 2));
       result.requestLength++;
     }
   }
 
   // if there is something more,
-  if (input.length() != 0)
-  {
+  if (input.length() != 0) {
     // get the REPLY
     char ch;
     String reply = "";
-    do
-    {
+    do {
       ch = input.charAt(0);
       if (ch != ',') reply += ch;
       input.remove(0, 1);
-    }
-    while (input.length() != 0 && ch != ',');
-    for (int i = 0; i < reply.length() && result.replyLength < 8; i += 2) // check for overflow
-    {
+    } while (input.length() != 0 && ch != ',');
+    for (int i = 0; i < reply.length() && result.replyLength < 8; i += 2) { // check for overflow
       result.reply[result.replyLength] = hexToDec(reply.substring(i, i + 2));
       result.replyLength++;
     }
@@ -806,7 +777,7 @@ COMMAND decodeCommand(String &input)
 }
 
 /*****************************************************************************
- * Converter functions
+* Converter functions
 */
 
 // convert a CAN_frame to readable hex output format
@@ -849,8 +820,8 @@ String bufferedFrameToString (int id)
 }
 
 /*****************************************************************************
- * Utility functions
- */
+* Utility functions
+*/
 
 String getHexSimple(uint8_t num)
 {
@@ -873,11 +844,11 @@ unsigned int hexToDec(String hexString) {
   for (int i = 0; i < hexString.length(); i++) {
     nextInt = int(hexString.charAt(i));
     if (nextInt >= 48 && nextInt <= 57)
-      nextInt = map(nextInt, 48, 57, 0, 9);
+    nextInt = map(nextInt, 48, 57, 0, 9);
     else if (nextInt >= 65 && nextInt <= 70)
-      nextInt = map(nextInt, 65, 70, 10, 15);
+    nextInt = map(nextInt, 65, 70, 10, 15);
     else if (nextInt >= 97 && nextInt <= 102)
-      nextInt = map(nextInt, 97, 102, 10, 15);
+    nextInt = map(nextInt, 97, 102, 10, 15);
     nextInt = constrain(nextInt, 0, 15);
     decValue = (decValue * 16) + nextInt;
   }
@@ -885,8 +856,8 @@ unsigned int hexToDec(String hexString) {
 }
 
 /*****************************************************************************
- * ZOE CAN computer related functions
- */
+* ZOE CAN computer related functions
+*/
 uint16_t getRequestId(uint16_t responseId)
 {                     // from ECU id   to ECU id
   if      (responseId == 0x7ec) return 0x7e4; // EVC
