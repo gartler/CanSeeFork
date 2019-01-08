@@ -1,3 +1,6 @@
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
+
 #include <EEPROM.h>
 
 #define WIFI_STATION 1
@@ -6,8 +9,7 @@
 
 // Config ********************************************************************
 // structure that defines the firmware's configuration
-typedef struct
-{
+typedef struct {
   uint32_t magicnumber;                    // does that read CanSee?
   byte version;
   byte mode_serial;
@@ -21,7 +23,9 @@ typedef struct
   char password_ap [16];
   char ssid_station [32];
   char password_station [16];
-} CONFIG;
+} CS_CONFIG;
 
-CONFIG *getConfigFromEeprom ();
+CS_CONFIG *getConfigFromEeprom ();
 void setConfigToEeprom (bool reset);
+
+#endif

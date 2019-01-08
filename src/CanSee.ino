@@ -55,21 +55,14 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 
 // Our own includes, see ./include/ ******************************************
 #include "config.h"     // Contains WiFi credentials for station mode
+#include "leds.h"
 
 // Tidy up defs **************************************************************
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
-#define LED_WHITE 26    // ISO-TP frame incoming
-#define LED_YELLOW 27   // free fame incoming
-#define LED_RED 32      // power
-#define LED_GREEN 33    // serial incoming request
-#define LED_BLUE 25     // bluetooth connected
-#define LED_ON LOW      // active LOW
-#define LED_OFF HIGH
-
-CONFIG *cansee_config;
+CS_CONFIG *cansee_config;
 
 // Bluetooth *****************************************************************
 BluetoothSerial SerialBT;
@@ -152,46 +145,7 @@ void setup() {
   }
   if (!cansee_config->mode_serial && !cansee_config->mode_debug) Serial.end();
 
-  if (cansee_config->mode_leds) {
-    // setup LED's
-    pinMode(LED_WHITE, OUTPUT);
-    pinMode(LED_YELLOW, OUTPUT);
-    pinMode(LED_RED, OUTPUT);
-    pinMode(LED_GREEN, OUTPUT);
-    pinMode(LED_BLUE, OUTPUT);
-
-    // they are active low ...
-    digitalWrite(LED_WHITE, LED_OFF);
-    digitalWrite(LED_YELLOW, LED_OFF);
-    digitalWrite(LED_RED, LED_OFF);
-    digitalWrite(LED_GREEN, LED_OFF);
-    digitalWrite(LED_BLUE, LED_OFF);
-
-    // startup sequence
-    digitalWrite(LED_BLUE, LED_ON);
-    delay(200);
-    digitalWrite(LED_BLUE, LED_OFF);
-    digitalWrite(LED_GREEN, LED_ON);
-    delay(200);
-    digitalWrite(LED_GREEN, LED_OFF);
-    digitalWrite(LED_RED, LED_ON);
-    delay(200);
-    digitalWrite(LED_RED, LED_OFF);
-    digitalWrite(LED_YELLOW, LED_ON);
-    delay(200);
-    digitalWrite(LED_YELLOW, LED_OFF);
-    digitalWrite(LED_WHITE, LED_ON);
-    delay(200);
-    digitalWrite(LED_WHITE, LED_OFF);
-
-    // setup PWM to dim some of the LED's that may stay "always on"
-    // like "power" and "bluetooth"
-    ledcSetup(0, 5000, 8);
-    ledcWrite(0, 250);
-
-    // turn RED (=power) immediately on
-    ledcAttachPin(LED_RED, 0);
-  }
+  leds_init (cansee_config);
 
   if (cansee_config->mode_bluetooth) {
     if (cansee_config->mode_debug) Serial.println("Bluetooth " + String (cansee_config->name_bluetooth) + " starting ...");
@@ -234,18 +188,6 @@ void setup() {
 
 
 void loop() {
-
-  if (cansee_config->mode_leds) {
-    if (SerialBT.hasClient())
-      ledcAttachPin(LED_BLUE, 0);
-    else
-    {
-      pinMatrixOutDetach(LED_BLUE, false, false);
-      // this method is not yet in the actual build!
-      //ledcDetachPin(LED_BLUE);
-    }
-  }
-
   // 1. receive next CAN frame from queue
   // removed 3 * portTICK_PERIOD_MS to not block the code
   CAN_frame_t rx_frame;
@@ -254,6 +196,7 @@ void loop() {
   }
 
   // 2. proceed with input (serial & BT)
+  led_set (LED_BLUE, SerialBT.hasClient());
   readIncoming ();
 
   // 3. age data array of free frames
@@ -285,7 +228,7 @@ void loop() {
 
 void storeFrame (CAN_frame_t &frame) {
   if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
-    if (cansee_config->mode_leds) digitalWrite(LED_YELLOW, LED_ON);
+    led_set (LED_YELLOW, true);
 
     if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
       Serial.print ("FF:");
@@ -297,12 +240,12 @@ void storeFrame (CAN_frame_t &frame) {
     dataArray[frame.MsgID][8] = frame.FIR.B.DLC;  // and the length
     dataArray[frame.MsgID][9] = 0xff;             // age to ff
 
-    if (cansee_config->mode_leds) digitalWrite(LED_YELLOW, LED_OFF);
+    led_set (LED_YELLOW, false);
   }
 
   // if there is content and this is the frame we are waiting for
   else if (frame.FIR.B.DLC > 0 && frame.MsgID == isoMessage.id) {
-    if (cansee_config->mode_leds) digitalWrite(LED_WHITE, LED_ON);
+    led_set (LED_WHITE, true);
 
     uint8_t type = frame.data.u8[0] >> 4;         // id = first nibble
 
@@ -422,7 +365,7 @@ void storeFrame (CAN_frame_t &frame) {
       if (cansee_config->mode_debug) Serial.println("E:ISO ignoring unknown frame type:" + String (type));
     }
 
-    if (cansee_config->mode_leds) digitalWrite(LED_WHITE, LED_OFF);
+    led_set (LED_WHITE, false);
   } else {
     if (cansee_config->mode_debug) Serial.println("E:ISO frame of unrequested id:" + String(frame.MsgID, HEX));
   }
@@ -447,19 +390,18 @@ void writeOutgoingBluetooth (String o) {
 }
 
 void writeOutgoingWiFi (String o) {
-  if (cansee_config->mode_wifi) {
-    if (!wiFiIsActive) return;
-    char buf[1024];
-    unsigned int len;
-    // o.replace ("\n", "\n\r");
-    if ((len = o.length()) > 1024) len = 1024;
-    o.toCharArray(buf, len);
-    for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
-      if (serverClients[i] && serverClients[i].connected()) {
-        //serverClients[i].write(o);
-        serverClients[i].write(buf, len);
-        //delay(1);
-      }
+  if (!cansee_config->mode_wifi) return;
+  if (!wiFiIsActive) return;
+  char buf[1024];
+  unsigned int len;
+  // o.replace ("\n", "\n\r");
+  if ((len = o.length()) > 1024) len = 1024;
+  o.toCharArray(buf, len);
+  for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
+    if (serverClients[i] && serverClients[i].connected()) {
+      //serverClients[i].write(o);
+      serverClients[i].write(buf, len);
+      //delay(1);
     }
   }
 }
@@ -471,39 +413,35 @@ void readIncoming() {
 }
 
 void readIncomingSerial() {
-  if (cansee_config->mode_serial || cansee_config->mode_debug) {
-    if (Serial.available()) {
-      char ch = Serial.read();
-      if (ch == '\n' || ch == '\r') {
-        if (readBuffer != "") {
-          processCommand(readBuffer);
-          readBuffer = "";
-        }
-      } else {
-        readBuffer += ch;
-      }
+  if (!cansee_config->mode_serial && !cansee_config->mode_debug) return;
+  if (!Serial.available()) return;
+  char ch = Serial.read();
+  if (ch == '\n' || ch == '\r') {
+    if (readBuffer != "") {
+      processCommand(readBuffer);
+      readBuffer = "";
     }
+  } else {
+    readBuffer += ch;
   }
 }
 
 void readIncomingBluetooth() {
-if (cansee_config->mode_bluetooth) {
-  if (SerialBT.available()) {
-    char ch = SerialBT.read();
-    if (ch == '\n' || ch == '\r') {
-      if (readBuffer != "") {
-        processCommand(readBuffer);
-        readBuffer = "";
-      }
-    } else {
-      readBuffer += ch;
+  if (!cansee_config->mode_bluetooth) return;
+  if (!SerialBT.available()) return;
+  char ch = SerialBT.read();
+  if (ch == '\n' || ch == '\r') {
+    if (readBuffer != "") {
+      processCommand(readBuffer);
+      readBuffer = "";
     }
+  } else {
+    readBuffer += ch;
   }
-}
 }
 
 void readIncomingWiFi() {
-  if (cansee_config->mode_wifi) {
+  if (!cansee_config->mode_wifi) return;
     if (!wiFiIsActive) return;
     // no need to check for WL_CONNECTED, as we are the access point
     uint8_t i;
@@ -559,7 +497,6 @@ void readIncomingWiFi() {
           }
         }
       }
-    }
   }
 }
 
