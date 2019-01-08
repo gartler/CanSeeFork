@@ -11,7 +11,6 @@ void setConfigDefault_2 () {
   cs_config.can2_rx = GPIO_NUM_6;                    // reserved for future use
   cs_config.can2_tx = GPIO_NUM_7;
   cs_config.can2_speed = (byte)CAN_SPEED_250KBPS;
-  setConfigDefault_2 ();
 }
 
 void setConfigDefault () {
