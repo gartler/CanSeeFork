@@ -168,9 +168,9 @@ void setup() {
     server.begin ();                                 // start the server
   }
 
-  CAN_cfg.speed = CAN_SPEED_500KBPS;               // init the CAN bus (pins and baudrate)
-  CAN_cfg.tx_pin_id = GPIO_NUM_5;
-  CAN_cfg.rx_pin_id = GPIO_NUM_4;
+  CAN_cfg.speed = (CAN_speed_t)cansee_config->can1_speed;               // init the CAN bus (pins and baudrate)
+  CAN_cfg.tx_pin_id = (gpio_num_t)cansee_config->can1_tx;
+  CAN_cfg.rx_pin_id = (gpio_num_t)cansee_config->can1_rx;
   // create a generic RTOS queue for CAN receiving, with 10 positions
   CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
   if (CAN_cfg.rx_queue == 0) {
@@ -625,6 +625,15 @@ void processCommand(String &line) {
       break;
       case 0x401:
       strncpy (cansee_config->password_station, command.line + 5, sizeof (cansee_config->password_station));
+      break;
+      case 0x500: // can1
+      cansee_config->can1_speed      = command.request [0];
+      cansee_config->can1_rx         = command.request [1];
+      cansee_config->can1_tx         = command.request [2];
+      case 0x501: // can2
+      cansee_config->can2_speed      = command.request [0];
+      cansee_config->can2_rx         = command.request [1];
+      cansee_config->can2_tx         = command.request [2];
       break;
     }
     setConfigToEeprom (false);

@@ -23,6 +23,12 @@ typedef struct {
   char password_ap [16];
   char ssid_station [32];
   char password_station [16];
+  byte can1_rx;
+  byte can1_tx;
+  byte can1_speed;
+  byte can2_rx;
+  byte can2_tx;
+  byte can2_speed;
 } CS_CONFIG;
 
 CS_CONFIG *getConfigFromEeprom ();
