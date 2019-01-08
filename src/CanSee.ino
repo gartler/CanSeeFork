@@ -42,13 +42,11 @@ ESP32 GPIO27  yellow LED with 120 O  resistor
 ESP32 GPIO32  red    LED with 120 O  resistor
 ESP32 GPIO33  green  LED with 120 O  resistor
 ESP32 GPIO25  blue   LED with 120 O  resistor
-
 */
 
 // Arduino framework includes ************************************************
 #include <WiFi.h>
 #include <BluetoothSerial.h>
-
 
 // Our own includes, see ./include/ ******************************************
 #include "config.h"
@@ -60,6 +58,7 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
+// Config ********************************************************************
 CS_CONFIG *cansee_config;
 
 // Bluetooth *****************************************************************
@@ -74,8 +73,7 @@ WiFiClient serverClients[MAX_SRV_CLIENTS];
 
 // Command *******************************************************************
 // structure that defines a textual incoming command
-typedef struct
-{
+typedef struct {
   char cmd;
   uint32_t id = 0;
   uint8_t request[8];
@@ -85,7 +83,7 @@ typedef struct
   char line[48];
 } COMMAND;
 
-// CANbus ********************************************************************
+// CANbus config *************************************************************
 CAN_device_t CAN_cfg;
 
 // Free frames storage *******************************************************
@@ -97,9 +95,7 @@ uint8_t dataArray[SIZE][10];
 int dataArraySize = SIZE;
 
 // ISO-TP message ************************************************************
-// structure that defines an ISO-TP message
-typedef struct
-{
+typedef struct {
   uint16_t id = 0xffff;                            // the from-address of the responding device
   uint16_t requestId = 0xffff;                     // the to-address of the device to send the request to
   uint16_t length = 0;
@@ -119,6 +115,7 @@ ISO_MESSAGE isoMessage;
 // command read buffer *******************************************************
 String readBuffer = "";
 
+// ***************************************************************************
 void setup() {
   Serial.begin(SERIAL_BPS);                         // init serial
   Serial.println ("");
@@ -174,7 +171,7 @@ void setup() {
   }
 }
 
-
+// ***************************************************************************
 void loop() {
   // 1. receive next CAN frame from queue
   // removed 3 * portTICK_PERIOD_MS to not block the code
@@ -237,7 +234,7 @@ void storeFrame (CAN_frame_t &frame) {
 
     uint8_t type = frame.data.u8[0] >> 4;         // id = first nibble
 
-    // single frame answer *****************************************************
+    // single frame answer ***************************************************
     if (type == 0x0) {
       if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
         Serial.print(">>ISO SING:");
@@ -254,20 +251,18 @@ void storeFrame (CAN_frame_t &frame) {
 
       // fill up with this initial first-frame data (should always be 6)
       isoMessage.index = 0;                            // pointer at start of array
-      for (int i = 1; i < frame.FIR.B.DLC; i++)        // was starting at 4?
-      {
-        if (isoMessage.index < isoMessage.length)
-        {
+      for (int i = 1; i < frame.FIR.B.DLC; i++) {      // was starting at 4?
+        if (isoMessage.index < isoMessage.length) {
           isoMessage.data[isoMessage.index++] = frame.data.u8[i];
         }
       }
-      writeOutgoing (isoMessageToString(isoMessage));
+      writeOutgoing (isoMessageToString (isoMessage));
 
       // cancel this message
       isoMessage.id = 0xffff;
     }
 
-    // first frame of a multi-framed message ***********************************
+    // first frame of a multi-framed message *********************************
     else if (type == 0x1) {
       if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
         Serial.print("ISO FRST:");
@@ -317,12 +312,11 @@ void storeFrame (CAN_frame_t &frame) {
           }
         }
 
-        // wait for next message
-        if (isoMessage.next++ == 15) isoMessage.next = 0; // was 1, but a rollover should be from 15 to 0
+        // wait for next message, rollover from 15 to 0
+        if (isoMessage.next++ == 15) isoMessage.next = 0;
 
         // is this the last part?
-        if (isoMessage.index == isoMessage.length)
-        {
+        if (isoMessage.index == isoMessage.length) {
           // output the data
           String dataString = isoMessageToString(isoMessage);
           if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) Serial.print(">>ISO MSG:");
@@ -346,9 +340,7 @@ void storeFrame (CAN_frame_t &frame) {
   }
 }
 
-/*****************************************************************************
-* I/O functions
-*/
+// I/O functions *************************************************************
 
 void writeOutgoing (String o) {
   writeOutgoingSerial (o);
@@ -475,9 +467,10 @@ void readIncomingWiFi() {
   }
 }
 
-// execute a command
+// execute a command *********************************************************
 void processCommand(String &line) {
   uint8_t bus;
+
   if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + line);
   COMMAND command = decodeCommand(line);  // watch out, passe dby reference, so eaten
 
@@ -486,7 +479,7 @@ void processCommand(String &line) {
 
   switch (command.cmd) {
 
-    // output all buffered frames **********************************************
+    // output all buffered frames ********************************************
     case 'a': {
       int count = 0;
       for (int id = 0; id < dataArraySize; id++) {
@@ -499,7 +492,7 @@ void processCommand(String &line) {
     }
     break;
 
-    // get a frame *************************************************************
+    // get a frame ***********************************************************
     case 'g':
     if (command.id < dataArraySize) {
       writeOutgoing (bufferedFrameToString(command.id));
@@ -509,7 +502,7 @@ void processCommand(String &line) {
     }
     break;
 
-    // request an ISO-TP frame *************************************************
+    // request an ISO-TP frame ***********************************************
     case 'i':
     // only accept this command if the requested ID belongs to an ISO-TP frame
     if (command.id < 0x700 || command.id > 0x7ff) {
@@ -553,7 +546,7 @@ void processCommand(String &line) {
     // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
     break;
 
-    // inject a frame via serial / BT input ************************************
+    // inject a frame via serial / BT input **********************************
     case 't': {
       CAN_frame_t frame;
       frame.MsgID = command.id;
@@ -567,13 +560,13 @@ void processCommand(String &line) {
     }
     break;
 
-    // filter (deprecated) *****************************************************
+    // filter (deprecated) ***************************************************
     case 'f':
     if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:Filter " + String (command.id, HEX));
     writeOutgoing (String (command.id, HEX) + "\n");
     break;
 
-    // config (see config.cpp) *************************************************
+    // config (see config.cpp) ***********************************************
     case 'n':
     if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:config " + String (command.id, HEX));
     switch (command.id) {
@@ -619,13 +612,12 @@ void processCommand(String &line) {
     writeOutgoing (String (command.id, HEX) + "\n");
     break;
 
-
-    // reset *******************************************************************
+    // reset *****************************************************************
     case 'z':
     ESP.restart();
     break;
 
-    // give up *****************************************************************
+    // give up ***************************************************************
     default:
     if (cansee_config->mode_debug) Serial.println ("> com:Unknown command " + String (command.cmd));
     writeOutgoing("fff,\n");
@@ -633,31 +625,23 @@ void processCommand(String &line) {
   }
 }
 
-// parse a string into a command
-COMMAND decodeCommand (String &input)
-{
+// parse a string into a command *********************************************
+COMMAND decodeCommand (String &input) {
   COMMAND result;
-
-  // clear out older data
-  result.id = 0;
+  result.id = 0;                                     // clear out older data
   result.requestLength = 0;
   result.replyLength = 0;
 
-  // trim whitespaces
-  input.trim();
+  input.trim();                                      // trim whitespaces
   strncpy (result.line, input.c_str(), sizeof (result.line));
 
-  // stop if input is empty
-  if (input.length() == 0) return result;
+  if (input.length() == 0) return result;            // stop if input is empty
 
-  // the first letter is the command
-  result.cmd = input.charAt(0);
+  result.cmd = input.charAt(0);                      // the first letter is the command
   input.remove(0, 1);
 
-  // if there is something more,
-  if (input.length() != 0) {
-    // get the ID
-    char ch;
+  if (input.length() != 0) {                         // if there is something more,
+    char ch;                                         // get the ID
     String id = "";
     do {
       ch = input.charAt(0);
@@ -667,10 +651,8 @@ COMMAND decodeCommand (String &input)
     result.id = hexToDec(id);
   }
 
-  // if there is something more,
-  if (input.length() != 0) {
-    // get the REQUEST
-    char ch;
+  if (input.length() != 0) {                         // if there is something more,
+    char ch;                                         // get the REQUEST
     String request = "";
     do {
       ch = input.charAt(0);
@@ -683,10 +665,8 @@ COMMAND decodeCommand (String &input)
     }
   }
 
-  // if there is something more,
-  if (input.length() != 0) {
-    // get the REPLY
-    char ch;
+  if (input.length() != 0) {                         // if there is something more,
+    char ch;                                         // get the REPLY
     String reply = "";
     do {
       ch = input.charAt(0);
@@ -701,16 +681,12 @@ COMMAND decodeCommand (String &input)
   return result;
 }
 
-/*****************************************************************************
-* Converter functions
-*/
+// Converter functions *******************************************************
 
 // convert a CAN_frame to readable hex output format
-String canFrameToString(CAN_frame_t &frame)
-{
+String canFrameToString(CAN_frame_t &frame) {
   String dataString = String(frame.MsgID, HEX) + ",";
-  for (int i = 0; i < frame.FIR.B.DLC; i++)
-  {
+  for (int i = 0; i < frame.FIR.B.DLC; i++) {
     dataString += getHex(frame.data.u8[i]);
   }
   dataString += "\n";
@@ -718,11 +694,9 @@ String canFrameToString(CAN_frame_t &frame)
 }
 
 // convert a ISO-TP message to readable hex output format
-String isoMessageToString(ISO_MESSAGE & message)
-{
+String isoMessageToString(ISO_MESSAGE & message) {
   String dataString = String(message.id, HEX) + ",";
-  for (int i = 0; i < message.length; i++)
-  {
+  for (int i = 0; i < message.length; i++) {
     dataString += getHex(message.data[i]);
   }
   dataString += "\n";
@@ -730,13 +704,11 @@ String isoMessageToString(ISO_MESSAGE & message)
 }
 
 // convert a buffered frame to readable hex output format
-String bufferedFrameToString (int id)
-{
+String bufferedFrameToString (int id) {
   uint8_t *fd = dataArray[id];
   String dataString = String (id, HEX) + ",";
   if (fd[9]) {
-    for (int i = 0; i < fd[8]; i++)
-    {
+    for (int i = 0; i < fd[8]; i++) {
       dataString += getHex(fd[i]);
     }
   }
@@ -744,25 +716,19 @@ String bufferedFrameToString (int id)
   return dataString;
 }
 
-/*****************************************************************************
-* Utility functions
-*/
-
-String getHexSimple(uint8_t num)
-{
+// Utility functions *********************************************************
+String getHexSimple(uint8_t num) {
   String stringOne =  String(num, HEX);
   return stringOne;
 }
 
-String getHex(uint8_t num)
-{
+String getHex(uint8_t num) {
   String stringOne =  String(num, HEX);
   if (stringOne.length() < 2) stringOne = "0" + stringOne;
   return stringOne;
 }
 
 unsigned int hexToDec(String hexString) {
-
   unsigned int decValue = 0;
   int nextInt;
 
@@ -780,11 +746,9 @@ unsigned int hexToDec(String hexString) {
   return decValue;
 }
 
-/*****************************************************************************
-* ZOE CAN computer related functions
-*/
-uint16_t getRequestId(uint16_t responseId)
-{                     // from ECU id   to ECU id
+// ZOE CAN computer related functions ****************************************
+uint16_t getRequestId(uint16_t responseId) {
+                      // from ECU id   to ECU id
   if      (responseId == 0x7ec) return 0x7e4; // EVC
   else if (responseId == 0x7da) return 0x7ca; // TCU
   else if (responseId == 0x7bb) return 0x79b; // LBC

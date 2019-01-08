@@ -3,36 +3,37 @@
 CS_CONFIG *can_config;
 uint8_t used_bus = 1;
 
-void can_init (CS_CONFIG *config) {
-  can_config = config;
+void can_bus_set () {
+  if (used_bus == 1) {
     CAN_cfg.speed = (CAN_speed_t)can_config->can1_speed;               // init the CAN bus (pins and baudrate)
     CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can1_tx;
     CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can1_rx;
-    // create a generic RTOS queue for CAN receiving, with 10 positions
-    CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
-    if (CAN_cfg.rx_queue == 0) {
-      if (can_config->mode_debug) Serial.println("Can't create CANbus buffer. Stopping");
-      while (1);
-    }
-    if (can_config->mode_debug) Serial.println("CAN starting ...");
-    ESP32Can.CANInit();                              // initialize CAN Module
+  } else {
+    CAN_cfg.speed = (CAN_speed_t)can_config->can2_speed;               // init the CAN bus (pins and baudrate)
+    CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can2_tx;
+    CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can2_rx;
+  }
+}
 
+void can_init (CS_CONFIG *config) {
+  can_config = config;
+  can_bus_set (used_bus);
+  // create a generic RTOS queue for CAN receiving, with 10 positions
+  CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
+  if (CAN_cfg.rx_queue == 0) {
+    if (can_config->mode_debug) Serial.println("Can't create CANbus buffer. Stopping");
+    while (1);
+  }
+  if (can_config->mode_debug) Serial.println("CAN starting ...");
+  ESP32Can.CANInit();                              // initialize CAN Module
 }
 
 void can_send (CAN_frame_t *frame, uint8_t bus) {
   if (bus != used_bus) {
-    ESP32Can.CANStop();
-    if (bus == 1) {
-      CAN_cfg.speed = (CAN_speed_t)can_config->can1_speed;               // init the CAN bus (pins and baudrate)
-      CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can1_tx;
-      CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can1_rx;
-    } else {
-      CAN_cfg.speed = (CAN_speed_t)can_config->can2_speed;               // init the CAN bus (pins and baudrate)
-      CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can2_tx;
-      CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can2_rx;
-    }
-    ESP32Can.CANInit();                              // initialize CAN Module
     used_bus = bus;
+    ESP32Can.CANStop();
+    can_bus_set ();
+    ESP32Can.CANInit();                              // initialize CAN Module
   }
   ESP32Can.CANWriteFrame (frame);
 }
