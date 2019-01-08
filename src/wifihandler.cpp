@@ -9,6 +9,12 @@ WiFiClient serverClients[MAX_SRV_CLIENTS];
 void wifi_init (CS_CONFIG *config, void (*p)()) {
   wifi_config = config;
   wifi_process = p;
+
+  if (wifi_config->mode_bluetooth) {
+    wifi_config->mode_wifi = 0;
+    if (wifi_config->mode_debug) Serial.println("Wifi can not coexist with Bluetoothn and is disabled.");
+  }
+
   if (wifi_config->mode_wifi == WIFI_SOFTAP) {
     if (wifi_config->mode_debug) Serial.println("Wifi AP " + String (wifi_config->ssid_ap) + " starting ...");
     WiFi.softAP (wifi_config->ssid_ap, wifi_config->password_ap);                    // init WiFi access point
@@ -53,7 +59,7 @@ void readIncomingWiFi (String &readBuffer) {
       if (!wiFiIsActive) {
         if (wifi_config->mode_debug) {
           IPAddress IP = WiFi.localIP ();
-          Serial.print ("IP address: ");
+          Serial.print ("IP ST address: ");
           Serial.println (IP);
         }
         wiFiIsActive = true;

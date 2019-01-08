@@ -14,7 +14,7 @@ void bluetooth_init (CS_CONFIG *config, void (*p)()) {
 }
 
 void writeOutgoingBluetooth (String o) {
-  if (bluetooth_config->mode_bluetooth) SerialBT.print (o);
+  if (bluetooth_config->mode_bluetooth && SerialBT.hasClient()) SerialBT.print (o);
 }
 
 void readIncomingBluetooth (String &readBuffer) {
