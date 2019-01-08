@@ -44,14 +44,13 @@ ESP32 GPIO33  green  LED with 120 O  resistor
 ESP32 GPIO25  blue   LED with 120 O  resistor
 */
 
-// Arduino framework includes ************************************************
-#include <WiFi.h>
-#include <BluetoothSerial.h>
-
 // Our own includes, see ./include/ ******************************************
 #include "config.h"
 #include "canhandler.h"
 #include "leds.h"
+#include "serialhandler.h"
+#include "bluetoothhandler.h"
+#include "wifihandler.h"
 
 // Tidy up defs **************************************************************
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -61,15 +60,6 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 // Config ********************************************************************
 CS_CONFIG *cansee_config;
 
-// Bluetooth *****************************************************************
-BluetoothSerial SerialBT;
-
-// WiFi *** (sensitive data in config.h, do not include in the repository! ***
-#define MAX_SRV_CLIENTS 1
-boolean wiFiIsActive = false;
-
-WiFiServer server(35000);
-WiFiClient serverClients[MAX_SRV_CLIENTS];
 
 // Command *******************************************************************
 // structure that defines a textual incoming command
@@ -138,30 +128,12 @@ void setup() {
     Serial.println ("Leds:      " + String (cansee_config->mode_leds     , HEX));
     Serial.println ("Debug:     " + String (cansee_config->mode_debug    , HEX));
   }
-  if (!cansee_config->mode_serial && !cansee_config->mode_debug) Serial.end();
 
   leds_init (cansee_config);
 
-  if (cansee_config->mode_bluetooth) {
-    if (cansee_config->mode_debug) Serial.println("Bluetooth " + String (cansee_config->name_bluetooth) + " starting ...");
-    SerialBT.begin(cansee_config->name_bluetooth); // init Bluetooth serial, no password in current framework
-  }
-
-  if (cansee_config->mode_wifi == WIFI_SOFTAP) {
-    if (cansee_config->mode_debug) Serial.println("Wifi AP " + String (cansee_config->ssid_ap) + " starting ...");
-    WiFi.softAP (cansee_config->ssid_ap, cansee_config->password_ap);                    // init WiFi access point
-    wiFiIsActive = true;                             // no need to check for active network
-    if (cansee_config->mode_debug) {
-      IPAddress IP = WiFi.softAPIP ();
-      Serial.print ("AP IP address: ");
-      Serial.println (IP);
-    }
-    server.begin ();                                 // start the server
-  } else if (cansee_config->mode_wifi == WIFI_STATION) {
-    if (cansee_config->mode_debug) Serial.println("Wifi ST " + String (cansee_config->ssid_station) + " starting ...");
-    WiFi.begin(cansee_config->ssid_station, cansee_config->password_station);                      // init WiFi station. Cheking is done in main loop
-    server.begin ();                                 // start the server
-  }
+  serial_init (cansee_config, processCommand);
+  bluetooth_init (cansee_config, processCommand);
+  wifi_init (cansee_config, processCommand);
 
   can_init (cansee_config);
 
@@ -181,29 +153,11 @@ void loop() {
   }
 
   // 2. proceed with input (serial & BT)
-  led_set (LED_BLUE, SerialBT.hasClient());
   readIncoming ();
 
   // 3. age data array of free frames
   // to do
 
-  // 4. check WiFi network status if in station mode
-  if (cansee_config->mode_wifi == WIFI_STATION) {
-    if (WiFi.status() == WL_CONNECTED) {            // check if connected
-      if (!wiFiIsActive) {
-        if (cansee_config->mode_debug) {
-          IPAddress IP = WiFi.localIP ();
-          Serial.print ("IP address: ");
-          Serial.println (IP);
-        }
-        wiFiIsActive = true;
-      }
-    } else {
-      if (wiFiIsActive) {
-        wiFiIsActive = false;
-      }
-    }
-  }
 }
 
 /*****************************************************************************
@@ -348,131 +302,18 @@ void writeOutgoing (String o) {
   writeOutgoingWiFi (o);
 }
 
-void writeOutgoingSerial (String o) {
-  if (cansee_config->mode_serial || cansee_config->mode_debug) Serial.print (o);
-}
-
-void writeOutgoingBluetooth (String o) {
-  if (cansee_config->mode_bluetooth) SerialBT.print (o);
-}
-
-void writeOutgoingWiFi (String o) {
-  if (!cansee_config->mode_wifi) return;
-  if (!wiFiIsActive) return;
-  char buf[1024];
-  unsigned int len;
-  // o.replace ("\n", "\n\r");
-  if ((len = o.length()) > 1024) len = 1024;
-  o.toCharArray(buf, len);
-  for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
-    if (serverClients[i] && serverClients[i].connected()) {
-      //serverClients[i].write(o);
-      serverClients[i].write(buf, len);
-      //delay(1);
-    }
-  }
-}
-
 void readIncoming() {
-  readIncomingSerial();
-  readIncomingBluetooth();
-  readIncomingWiFi();
-}
-
-void readIncomingSerial() {
-  if (!cansee_config->mode_serial && !cansee_config->mode_debug) return;
-  if (!Serial.available()) return;
-  char ch = Serial.read();
-  if (ch == '\n' || ch == '\r') {
-    if (readBuffer != "") {
-      processCommand(readBuffer);
-      readBuffer = "";
-    }
-  } else {
-    readBuffer += ch;
-  }
-}
-
-void readIncomingBluetooth() {
-  if (!cansee_config->mode_bluetooth) return;
-  if (!SerialBT.available()) return;
-  char ch = SerialBT.read();
-  if (ch == '\n' || ch == '\r') {
-    if (readBuffer != "") {
-      processCommand(readBuffer);
-      readBuffer = "";
-    }
-  } else {
-    readBuffer += ch;
-  }
-}
-
-void readIncomingWiFi() {
-  if (!cansee_config->mode_wifi) return;
-    if (!wiFiIsActive) return;
-    // no need to check for WL_CONNECTED, as we are the access point
-    uint8_t i;
-    if (server.hasClient()) {                        // check if there are any *NEW* clients
-      for (i = 0; i < MAX_SRV_CLIENTS; i++) {        //if so, find free or disconnected spot
-        if (!serverClients[i] || !serverClients[i].connected()) {
-          if (serverClients[i]) {                    // if not free (so disconnected)
-            serverClients[i].stop();                 // stop the client
-            if (cansee_config->mode_debug & DEBUG_COMMAND) {
-              Serial.print("Disconnected: ");
-              Serial.println(i);
-            }
-          }
-          serverClients[i] = server.available();     // fetch the client
-          if (serverClients[i]) {                    // it should be here
-            if (cansee_config->mode_debug & DEBUG_COMMAND) {
-              Serial.print("New client: ");
-              Serial.print(i); Serial.print(' ');
-              Serial.println(serverClients[i].remoteIP());
-            }
-          } else {                                   // if gone, oh well
-            if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("available broken");
-          }
-          break;
-        }
-      }
-      if (i >= MAX_SRV_CLIENTS) {                    //no free/disconnected spot so reject
-
-        server.available().stop();
-        if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("Refused");
-      }
-    }
-
-    for (i = 0; i < MAX_SRV_CLIENTS; i++) {          // check clients for data
-      if (serverClients[i] && serverClients[i].connected()) {
-        while (serverClients[i].available()) {       // if there is data
-          char ch = serverClients[i].read();         // get it
-          if (ch == '\n' || ch == '\r') {            // buffer / process it
-            if (readBuffer != "") {
-              processCommand(readBuffer);
-              readBuffer = "";
-            }
-          } else {
-            readBuffer += ch;
-          }
-        }
-      } else {                                       // no client, or unconnected
-        if (serverClients[i]) {                      // if there is a client (so unconnected)
-          serverClients[i].stop();                   // stop the client
-          if (cansee_config->mode_debug & DEBUG_COMMAND) {
-            Serial.print("Disconnected: ");
-            Serial.println(i);
-          }
-        }
-      }
-  }
+  readIncomingSerial (readBuffer);
+  readIncomingBluetooth (readBuffer);
+  readIncomingWiFi (readBuffer);
 }
 
 // execute a command *********************************************************
-void processCommand(String &line) {
+void processCommand () {
   uint8_t bus;
 
-  if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + line);
-  COMMAND command = decodeCommand(line);  // watch out, passe dby reference, so eaten
+  if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + readBuffer);
+  COMMAND command = decodeCommand (readBuffer);  // watch out, passe dby reference, so eaten
 
   bus = (command.id & 0x40000000) ? 1 : 0;
   command.id &= 0x1fffffff;               // allow for 29 bits CAN later
