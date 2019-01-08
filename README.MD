@@ -33,8 +33,19 @@ xxx config
 201 Set the Bluetooth pin (1234, not implemented by the API!!)
 300 Set the WiFi ssid for Soft Access Point mode (CANSee)
 301 Set the WiFi password for Soft Access Point mode (CANSeeMe)
-300 Set the WiFi ssid for Station mode (Home)
-301 Set the WiFi password for Station mode (Password)
+400 Set the WiFi ssid for Station mode (Home)
+401 Set the WiFi password for Station mode (Password)
+500 Set CANbus parameter for bus1 in hex as sprxtx
+      sp: speed
+        00 for 100 kbps
+        01 for 125 kbps
+        02 for 250 kbps
+        04 for 800
+        03 for 500 kbps kbps
+        05 for 1 mbps
+      rx: Rx pin of transceiver
+      tx: Tx pin of transceiver
+501 Set CANbus parameter for bus1 in hex as sprxtx (see above)
 
 z: Reboot (needed for all configuration changes except debug mode)
 

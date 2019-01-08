@@ -49,12 +49,10 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #include <WiFi.h>
 #include <BluetoothSerial.h>
 
-// Repository included libraries includes, see ./lib/ ************************
-#include "ESP32CAN.h"
-#include "CAN_config.h"
 
 // Our own includes, see ./include/ ******************************************
-#include "config.h"     // Contains WiFi credentials for station mode
+#include "config.h"
+#include "canhandler.h"
 #include "leds.h"
 
 // Tidy up defs **************************************************************
@@ -168,17 +166,7 @@ void setup() {
     server.begin ();                                 // start the server
   }
 
-  CAN_cfg.speed = (CAN_speed_t)cansee_config->can1_speed;               // init the CAN bus (pins and baudrate)
-  CAN_cfg.tx_pin_id = (gpio_num_t)cansee_config->can1_tx;
-  CAN_cfg.rx_pin_id = (gpio_num_t)cansee_config->can1_rx;
-  // create a generic RTOS queue for CAN receiving, with 10 positions
-  CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
-  if (CAN_cfg.rx_queue == 0) {
-    if (cansee_config->mode_debug) Serial.println("Can't create CANbus buffer. Stopping");
-    while (1);
-  }
-  if (cansee_config->mode_debug) Serial.println("CAN starting ...");
-  ESP32Can.CANInit();                              // initialize CAN Module
+  can_init (cansee_config);
 
   for (int id = 0; id < dataArraySize; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
     for (int i = 0; i < 9; i++) dataArray[id][i] = 0;
@@ -287,20 +275,7 @@ void storeFrame (CAN_frame_t &frame) {
       }
 
       // start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
-      CAN_frame_t flow;
-      flow.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
-      flow.FIR.B.RTR = CAN_no_RTR;                     // no RTR
-      flow.MsgID = isoMessage.requestId;               // send it to the requestId
-      flow.FIR.B.DLC = 8;                              // length 8 bytes
-      flow.data.u8[0] = 0x30;                          // type Flow (3), flag Clear to send (0)
-      flow.data.u8[1] = 0x00;                          // instruct to send all remaining frames without flow control
-      flow.data.u8[2] = 0x10;                          // delay between frames <=127 = millis
-      flow.data.u8[3] = 0;                             // fill-up
-      flow.data.u8[4] = 0;                             // fill-up
-      flow.data.u8[5] = 0;                             // fill-up
-      flow.data.u8[6] = 0;                             // fill-up
-      flow.data.u8[7] = 0;                             // fill-up
-      ESP32Can.CANWriteFrame(&flow);
+      can_send_flow (isoMessage.requestId);
 
       // build new iso message
       // isoMessage.id = frame.MsgID;                  // .id is already set when sending, and checked when answer was received
@@ -502,8 +477,12 @@ void readIncomingWiFi() {
 
 // execute a command
 void processCommand(String &line) {
+  uint8_t bus;
   if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + line);
   COMMAND command = decodeCommand(line);  // watch out, passe dby reference, so eaten
+
+  bus = (command.id & 0x40000000) ? 1 : 0;
+  command.id &= 0x1fffffff;               // allow for 29 bits CAN later
 
   switch (command.cmd) {
 
@@ -570,7 +549,7 @@ void processCommand(String &line) {
       Serial.print ("> com:Sending ISOTP request:");
       Serial.print (canFrameToString (frame));
     }
-    ESP32Can.CANWriteFrame (&frame);
+    can_send (&frame, bus);
     // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
     break;
 
