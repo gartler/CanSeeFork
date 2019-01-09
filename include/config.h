@@ -29,9 +29,9 @@ typedef struct {
   byte can2_rx;
   byte can2_tx;
   byte can2_speed;
-} CS_CONFIG;
+} CS_CONFIG_t;
 
-CS_CONFIG *getConfigFromEeprom ();
+CS_CONFIG_t *getConfigFromEeprom ();
 void setConfigToEeprom (bool reset);
 
 #endif

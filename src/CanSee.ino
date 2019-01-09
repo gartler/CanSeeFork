@@ -58,11 +58,9 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #endif
 
 // Config ********************************************************************
-CS_CONFIG *cansee_config;
+CS_CONFIG_t *cansee_config;
 
-
-// Command *******************************************************************
-// structure that defines a textual incoming command
+// Command structure that defines a textual incoming command *****************
 typedef struct {
   char cmd;
   uint32_t id = 0;
@@ -71,18 +69,23 @@ typedef struct {
   uint8_t reply[32];
   uint8_t replyLength = 0;
   char line[48];
-} COMMAND;
+} COMMAND_t;
 
 // CANbus config *************************************************************
 CAN_device_t CAN_cfg;
 
 // Free frames storage *******************************************************
-// all free frames are stored inside an 2D array storage for all 700 free
-// frames is pre-allocated, which will speed up request/response time. Byte
-// 8 is length, Byte 9 is reserved for age.
-#define SIZE 0x700
-uint8_t dataArray[SIZE][10];
-int dataArraySize = SIZE;
+// all free frames are stored in an array for all 700 free frames. This speeds
+// up request/response time significantly.
+#define FREEFRAMEARRAYSIZE 0x700
+typedef struct {
+  uint8_t data[8];
+  uint8_t length;
+  uint8_t age;
+} FREEFRAME_t;
+
+FREEFRAME_t freeframes[FREEFRAMEARRAYSIZE];
+//int dataArraySize = SIZE;
 
 // ISO-TP message ************************************************************
 typedef struct {
@@ -97,17 +100,17 @@ typedef struct {
   // uint8_t replyLength = 0;
   // uint8_t* data = 0;
   uint8_t data[1024];
-} ISO_MESSAGE;
+} ISO_MESSAGE_t;
 
 // declare an ISO-TP message
-ISO_MESSAGE isoMessage;
+ISO_MESSAGE_t isoMessage;
 
 // command read buffer *******************************************************
 String readBuffer = "";
 
 // ***************************************************************************
 void setup() {
-  Serial.begin(SERIAL_BPS);                         // init serial
+  Serial.begin (SERIAL_BPS);                         // init serial
   Serial.println ("");
   Serial.println ("");
   Serial.println ("CANSee starting...");
@@ -137,9 +140,10 @@ void setup() {
 
   can_init (cansee_config);
 
-  for (int id = 0; id < dataArraySize; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
-    for (int i = 0; i < 9; i++) dataArray[id][i] = 0;
-    dataArray[id][9] = 0xff;
+  for (int id = 0; id < FREEFRAMEARRAYSIZE; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
+    for (int i = 0; i < 8; i++) freeframes[id].data[i] = 0;
+    freeframes[id].length = 0;
+    freeframes[id].age = 0xff;
   }
 }
 
@@ -174,10 +178,10 @@ void storeFrame (CAN_frame_t &frame) {
       Serial.print(canFrameToString(frame));
     }
 
-    for (int i = 0; i < 8; i++)                   // store a copy
-    dataArray[frame.MsgID][i] = frame.data.u8[i];
-    dataArray[frame.MsgID][8] = frame.FIR.B.DLC;  // and the length
-    dataArray[frame.MsgID][9] = 0xff;             // age to ff
+    for (int i = 0; i < 8; i++)                    // store a copy
+      freeframes[frame.MsgID].data[i] = frame.data.u8[i];
+    freeframes[frame.MsgID].length = frame.FIR.B.DLC; // and the length
+    freeframes[frame.MsgID].age = 0xff;            // age to ff
 
     led_set (LED_YELLOW, false);
   }
@@ -186,7 +190,7 @@ void storeFrame (CAN_frame_t &frame) {
   else if (frame.FIR.B.DLC > 0 && frame.MsgID == isoMessage.id) {
     led_set (LED_WHITE, true);
 
-    uint8_t type = frame.data.u8[0] >> 4;         // id = first nibble
+    uint8_t type = frame.data.u8[0] >> 4;          // id = first nibble
 
     // single frame answer ***************************************************
     if (type == 0x0) {
@@ -196,7 +200,7 @@ void storeFrame (CAN_frame_t &frame) {
       }
 
       uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
-      if (messageLength > 7) messageLength = 7;  // this should never happen
+      if (messageLength > 7) messageLength = 7;    // this should never happen
       isoMessage.length = messageLength;
 
       // clear data buffer
@@ -204,8 +208,8 @@ void storeFrame (CAN_frame_t &frame) {
       isoMessage.data[i] = 0;
 
       // fill up with this initial first-frame data (should always be 6)
-      isoMessage.index = 0;                            // pointer at start of array
-      for (int i = 1; i < frame.FIR.B.DLC; i++) {      // was starting at 4?
+      isoMessage.index = 0;                        // pointer at start of array
+      for (int i = 1; i < frame.FIR.B.DLC; i++) {  // was starting at 4?
         if (isoMessage.index < isoMessage.length) {
           isoMessage.data[isoMessage.index++] = frame.data.u8[i];
         }
@@ -227,12 +231,12 @@ void storeFrame (CAN_frame_t &frame) {
       can_send_flow (isoMessage.requestId);
 
       // build new iso message
-      // isoMessage.id = frame.MsgID;                  // .id is already set when sending, and checked when answer was received
+      // isoMessage.id = frame.MsgID;              // .id is already set when sending, and checked when answer was received
       // set final length
       uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
       messageLength <<= 8;
       messageLength |= frame.data.u8[1];
-      if (messageLength > 1023) messageLength = 1023;  // this should never happen
+      if (messageLength > 1023) messageLength = 1023; // this should never happen
       isoMessage.length = messageLength;
 
       // clear data buffer
@@ -313,18 +317,18 @@ void processCommand () {
   uint8_t bus;
 
   if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + readBuffer);
-  COMMAND command = decodeCommand (readBuffer);  // watch out, passe dby reference, so eaten
+  COMMAND_t command = decodeCommand (readBuffer);    // watch out, passe dby reference, so eaten
 
   bus = (command.id & 0x40000000) ? 1 : 0;
-  command.id &= 0x1fffffff;               // allow for 29 bits CAN later
+  command.id &= 0x1fffffff;                        // allow for 29 bits CAN later
 
   switch (command.cmd) {
 
     // output all buffered frames ********************************************
     case 'a': {
       int count = 0;
-      for (int id = 0; id < dataArraySize; id++) {
-        if (dataArray[id][9]) { // print length 0 frames, but do not print timeout frames
+      for (int id = 0; id < FREEFRAMEARRAYSIZE; id++) {
+        if (freeframes[id].age) {                    // print length 0 frames, but do not print timeout frames
           writeOutgoing (bufferedFrameToString (id)); // includes \n
           count++;
         }
@@ -335,7 +339,7 @@ void processCommand () {
 
     // get a frame ***********************************************************
     case 'g':
-    if (command.id < dataArraySize) {
+    if (command.id < FREEFRAMEARRAYSIZE) {
       writeOutgoing (bufferedFrameToString(command.id));
     } else {
       if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
@@ -467,8 +471,8 @@ void processCommand () {
 }
 
 // parse a string into a command *********************************************
-COMMAND decodeCommand (String &input) {
-  COMMAND result;
+COMMAND_t decodeCommand (String &input) {
+  COMMAND_t result;
   result.id = 0;                                     // clear out older data
   result.requestLength = 0;
   result.replyLength = 0;
@@ -535,7 +539,7 @@ String canFrameToString(CAN_frame_t &frame) {
 }
 
 // convert a ISO-TP message to readable hex output format
-String isoMessageToString(ISO_MESSAGE & message) {
+String isoMessageToString(ISO_MESSAGE_t &message) {
   String dataString = String(message.id, HEX) + ",";
   for (int i = 0; i < message.length; i++) {
     dataString += getHex(message.data[i]);
@@ -546,11 +550,10 @@ String isoMessageToString(ISO_MESSAGE & message) {
 
 // convert a buffered frame to readable hex output format
 String bufferedFrameToString (int id) {
-  uint8_t *fd = dataArray[id];
   String dataString = String (id, HEX) + ",";
-  if (fd[9]) {
-    for (int i = 0; i < fd[8]; i++) {
-      dataString += getHex(fd[i]);
+  if (freeframes[id].age) {
+    for (int i = 0; i < freeframes[id].length; i++) {
+      dataString += getHex(freeframes[id].data[i]);
     }
   }
   dataString += "\n";

@@ -1,12 +1,12 @@
 #include "wifihandler.h"
 
-CS_CONFIG *wifi_config;
-void (*wifi_process)();
-boolean wiFiIsActive = false;
+static CS_CONFIG_t *wifi_config;
+static void (*wifi_process)();
+static boolean wiFiIsActive = false;
 WiFiServer server(35000);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
 
-void wifi_init (CS_CONFIG *config, void (*p)()) {
+void wifi_init (CS_CONFIG_t *config, void (*p)()) {
   wifi_config = config;
   wifi_process = p;
 

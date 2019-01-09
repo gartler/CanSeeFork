@@ -1,9 +1,9 @@
 #include "serialhandler.h"
 
-CS_CONFIG *serial_config;
-void (*serial_process)();
+static CS_CONFIG_t *serial_config;
+static void (*serial_process)();
 
-void serial_init (CS_CONFIG *config, void (*p)()) {              // Serial is already running
+void serial_init (CS_CONFIG_t *config, void (*p)()) {              // Serial is already running
   serial_config = config;
   serial_process = p;
   if (!serial_config->mode_serial && !serial_config->mode_debug) Serial.end();

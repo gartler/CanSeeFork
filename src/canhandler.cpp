@@ -1,7 +1,7 @@
 #include "canhandler.h"
 
-CS_CONFIG *can_config;
-uint8_t used_bus = 1;
+static CS_CONFIG_t *can_config;
+static uint8_t used_bus = 1;
 
 void can_bus_set () {
   if (used_bus == 1) {
@@ -15,7 +15,7 @@ void can_bus_set () {
   }
 }
 
-void can_init (CS_CONFIG *config) {
+void can_init (CS_CONFIG_t *config) {
   can_config = config;
   can_bus_set ();
   // create a generic RTOS queue for CAN receiving, with 10 positions
@@ -46,7 +46,7 @@ void can_send_flow (uint16_t requestId) {
   flow.FIR.B.DLC = 8;                              // length 8 bytes
   flow.data.u8[0] = 0x30;                          // type Flow (3), flag Clear to send (0)
   flow.data.u8[1] = 0x00;                          // instruct to send all remaining frames without flow control
-  flow.data.u8[2] = 0x10;                          // delay between frames <=127 = millis, can maybe set to 0
+  flow.data.u8[2] = 0x00;                          // delay between frames <=127 = millis, can maybe set to 0
   flow.data.u8[3] = 0;                             // fill-up
   flow.data.u8[4] = 0;                             // fill-up
   flow.data.u8[5] = 0;                             // fill-up

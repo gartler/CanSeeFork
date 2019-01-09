@@ -1,7 +1,7 @@
 #include "config.h"
 #include "CAN_config.h"
 
-CS_CONFIG cs_config;
+static CS_CONFIG_t cs_config;
 
 void setConfigDefault_2 () {
   cs_config.version = 2;                             // change if length of config changes
@@ -30,14 +30,14 @@ void setConfigDefault () {
   setConfigDefault_2 ();
 }
 
-CS_CONFIG *getConfigFromEeprom () {
-  if (!EEPROM.begin (sizeof (CS_CONFIG)))
+CS_CONFIG_t *getConfigFromEeprom () {
+  if (!EEPROM.begin (sizeof (CS_CONFIG_t)))
   {
     Serial.println ("failed to initialise EEPROM for reading");
     setConfigDefault ();
     return &cs_config;
   }
-  if (EEPROM.readBytes (0, &cs_config, sizeof (CS_CONFIG)) != sizeof (CS_CONFIG) || cs_config.magicnumber != 0x0caacee0) {
+  if (EEPROM.readBytes (0, &cs_config, sizeof (CS_CONFIG_t)) != sizeof (CS_CONFIG_t) || cs_config.magicnumber != 0x0caacee0) {
     Serial.println ("Not a valid EEPROM record");
     setConfigToEeprom (true);
   }
@@ -49,13 +49,13 @@ CS_CONFIG *getConfigFromEeprom () {
 }
 
 void setConfigToEeprom (bool reset) {
-  if (!EEPROM.begin (sizeof (CS_CONFIG)))
+  if (!EEPROM.begin (sizeof (CS_CONFIG_t)))
   {
     Serial.println ("failed to initialise EEPROM for writing");
     return;
   }
   if (reset) setConfigDefault ();
-  EEPROM.writeBytes (0, &cs_config, sizeof (CS_CONFIG));
+  EEPROM.writeBytes (0, &cs_config, sizeof (CS_CONFIG_t));
   EEPROM.commit ();
   EEPROM.end ();
   return;

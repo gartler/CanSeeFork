@@ -1,8 +1,8 @@
 #include "leds.h"
 
-CS_CONFIG *leds_config;
+static CS_CONFIG_t *leds_config;
 
-void leds_init (CS_CONFIG *config) {
+void leds_init (CS_CONFIG_t *config) {
   leds_config = config;
   if (!leds_config->mode_leds) return;
 

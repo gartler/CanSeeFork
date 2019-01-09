@@ -8,7 +8,7 @@
 
 #define MAX_SRV_CLIENTS 1
 
-void wifi_init (CS_CONFIG *config, void (*p)());
+void wifi_init (CS_CONFIG_t *config, void (*p)());
 void writeOutgoingWiFi (String o);
 void readIncomingWiFi (String &readBuffer);
 

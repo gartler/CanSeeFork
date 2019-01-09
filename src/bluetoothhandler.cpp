@@ -1,10 +1,10 @@
 #include "bluetoothhandler.h"
 
-CS_CONFIG *bluetooth_config;
-BluetoothSerial SerialBT;
-void (*bluetooth_process)();
+static CS_CONFIG_t *bluetooth_config;
+static BluetoothSerial SerialBT;
+static void (*bluetooth_process)();
 
-void bluetooth_init (CS_CONFIG *config, void (*p)()) {
+void bluetooth_init (CS_CONFIG_t *config, void (*p)()) {
   bluetooth_config = config;
   bluetooth_process = p;
   if (bluetooth_config->mode_bluetooth) {
