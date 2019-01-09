@@ -1,9 +1,10 @@
 #include "freeframehandler.h"
 
-
+static CS_CONFIG_t *freeframe_config;
 static FREEFRAME_t freeframes[FREEFRAMEARRAYSIZE];
 
-void freeframe_init () {
+void freeframe_init (CS_CONFIG_t *config) {
+  freeframe_config = config;
   for (int id = 0; id < FREEFRAMEARRAYSIZE; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
     for (int i = 0; i < 8; i++) freeframes[id].data[i] = 0;
     freeframes[id].length = 0;
@@ -11,22 +12,29 @@ void freeframe_init () {
   }
 }
 
-void storeFreeframe (CAN_frame_t &frame) {
+void storeFreeframe (CAN_frame_t &frame, uint8_t bus) {
   if (frame.MsgID < FREEFRAMEARRAYSIZE) {
-    for (int i = 0; i < 8; i++) {                   // store a copy
-      freeframes[frame.MsgID].data[i] = frame.data.u8[i];
-    }
-    freeframes[frame.MsgID].length = frame.FIR.B.DLC; // and the length
-    freeframes[frame.MsgID].age = 0xff;            // age to ff
+    //freeframe_process (String (frame.MsgID, HEX) + "\n");
+    return;
   }
+  if (freeframe_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
+    Serial.print ("FF:");
+    Serial.print(canFrameToString(frame));
+  }
+  for (int i = 0; i < 8; i++) {                   // store a copy
+    freeframes[frame.MsgID].data[i] = frame.data.u8[i];
+  }
+  freeframes[frame.MsgID].length = frame.FIR.B.DLC; // and the length
+  freeframes[frame.MsgID].age = 0xff;            // age to ff
 }
 
-FREEFRAME_t *getFreeframe (uint32_t id) {
+FREEFRAME_t *getFreeframe (uint32_t id, uint8_t bus) {
+  if (id >= FREEFRAMEARRAYSIZE) return &freeframes [0];
   return &freeframes [id];
 }
 
 // convert a buffered frame to readable hex output format
-String bufferedFrameToString (uint32_t id) {
+String bufferedFrameToString (uint32_t id, uint8_t bus) {
   String dataString = String (id, HEX) + ",";
   if (freeframes[id].age) {
     for (int i = 0; i < freeframes[id].length; i++) {

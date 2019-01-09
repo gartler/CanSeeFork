@@ -39,23 +39,6 @@ void can_send (CAN_frame_t *frame, uint8_t bus) {
   ESP32Can.CANWriteFrame (frame);
 }
 
-void can_send_flow (uint16_t requestId) {
-  CAN_frame_t flow;
-  flow.FIR.B.FF = CAN_frame_std;                   // set the type to 11 bits
-  flow.FIR.B.RTR = CAN_no_RTR;                     // no RTR
-  flow.MsgID = requestId;                          // send it to the requestId
-  flow.FIR.B.DLC = 8;                              // length 8 bytes
-  flow.data.u8[0] = 0x30;                          // type Flow (3), flag Clear to send (0)
-  flow.data.u8[1] = 0x00;                          // instruct to send all remaining frames without flow control
-  flow.data.u8[2] = 0x00;                          // delay between frames <=127 = millis, can maybe set to 0
-  flow.data.u8[3] = 0;                             // fill-up
-  flow.data.u8[4] = 0;                             // fill-up
-  flow.data.u8[5] = 0;                             // fill-up
-  flow.data.u8[6] = 0;                             // fill-up
-  flow.data.u8[7] = 0;                             // fill-up
-  can_send (&flow, used_bus);
-}
-
 boolean can_receive (CAN_frame_t *rx_frame) {
   return xQueueReceive (CAN_cfg.rx_queue, rx_frame, (TickType_t)0) == pdTRUE ? true : false;
 }

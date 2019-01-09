@@ -18,11 +18,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#define DEBUG_BUS_RECEIVE_FF  0x01
-#define DEBUG_BUS_RECEIVE_ISO 0x02
-#define DEBUG_COMMAND         0x04
 #define DEBUG_COMMAND_FF      0x08
-#define DEBUG_COMMAND_ISO     0x10
 
 #define VERSION "001"
 
@@ -52,6 +48,7 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #include "bluetoothhandler.h"
 #include "wifihandler.h"
 #include "freeframehandler.h"
+#include "isotphandler.h"
 #include "utils.h"
 
 // Tidy up defs **************************************************************
@@ -72,24 +69,6 @@ typedef struct {
   uint8_t replyLength = 0;
   char line[48];
 } COMMAND_t;
-
-// ISO-TP message ************************************************************
-typedef struct {
-  uint16_t id = 0xffff;                            // the from-address of the responding device
-  uint16_t requestId = 0xffff;                     // the to-address of the device to send the request to
-  uint16_t length = 0;
-  uint8_t index = 0;
-  uint8_t next = 1;
-  uint8_t request[8];
-  uint8_t requestLength = 0;
-  // uint8_t reply[8];
-  // uint8_t replyLength = 0;
-  // uint8_t* data = 0;
-  uint8_t data[1024];
-} ISO_MESSAGE_t;
-
-// declare an ISO-TP message
-ISO_MESSAGE_t isoMessage;
 
 // command read buffer *******************************************************
 String readBuffer = "";
@@ -125,7 +104,8 @@ void setup() {
   wifi_init (cansee_config, processCommand);
 
   can_init (cansee_config);
-  freeframe_init ();
+  freeframe_init (cansee_config);
+  isotp_init (cansee_config, writeOutgoing);
 }
 
 // ***************************************************************************
@@ -151,125 +131,14 @@ void loop() {
 */
 
 void storeFrame (CAN_frame_t &frame) {
-  if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
+  if (frame.MsgID < 0x700) {                      // free data is < 0x700
     led_set (LED_YELLOW, true);
-    if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
-      Serial.print ("FF:");
-      Serial.print(canFrameToString(frame));
-    }
-    storeFreeframe (frame);
+    storeFreeframe (frame, 0);
     led_set (LED_YELLOW, false);
-  }
-
-  // if there is content and this is the frame we are waiting for
-  else if (frame.FIR.B.DLC > 0 && frame.MsgID == isoMessage.id) {
+  } else if (frame.MsgID < 0x800) {                // iso-tp data is < 0x800
     led_set (LED_WHITE, true);
-
-    uint8_t type = frame.data.u8[0] >> 4;          // id = first nibble
-
-    // single frame answer ***************************************************
-    if (type == 0x0) {
-      if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
-        Serial.print(">>ISO SING:");
-        Serial.print(canFrameToString(frame));
-      }
-
-      uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
-      if (messageLength > 7) messageLength = 7;    // this should never happen
-      isoMessage.length = messageLength;
-
-      // clear data buffer
-      for (int i = 0; i < messageLength; i++)
-      isoMessage.data[i] = 0;
-
-      // fill up with this initial first-frame data (should always be 6)
-      isoMessage.index = 0;                        // pointer at start of array
-      for (int i = 1; i < frame.FIR.B.DLC; i++) {  // was starting at 4?
-        if (isoMessage.index < isoMessage.length) {
-          isoMessage.data[isoMessage.index++] = frame.data.u8[i];
-        }
-      }
-      writeOutgoing (isoMessageToString (isoMessage));
-
-      // cancel this message
-      isoMessage.id = 0xffff;
-    }
-
-    // first frame of a multi-framed message *********************************
-    else if (type == 0x1) {
-      if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
-        Serial.print("ISO FRST:");
-        Serial.print(canFrameToString(frame));
-      }
-
-      // start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
-      can_send_flow (isoMessage.requestId);
-
-      // build new iso message
-      // isoMessage.id = frame.MsgID;              // .id is already set when sending, and checked when answer was received
-      // set final length
-      uint16_t messageLength = frame.data.u8[0] & 0x0f;// length = second nibble + second byte
-      messageLength <<= 8;
-      messageLength |= frame.data.u8[1];
-      if (messageLength > 1023) messageLength = 1023; // this should never happen
-      isoMessage.length = messageLength;
-
-      // clear data buffer
-      for (int i = 0; i < messageLength; i++)
-      isoMessage.data[i] = 0;
-
-      // init sequence
-      isoMessage.next = 1;                         // we are handling frame 0 now, so the next one is 1
-
-      // fill up with this initial first-frame data (should always be 6)
-      isoMessage.index = 0;                        // pointer at start of array
-      for (int i = 2; i < frame.FIR.B.DLC; i++) {  // was starting at 4?
-        if (isoMessage.index < isoMessage.length) {
-          isoMessage.data[isoMessage.index++] = frame.data.u8[i];
-        }
-      }
-    }
-
-    // consecutive frame(s) **************************************************
-    else if (type == 0x2) {
-      if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) {
-        Serial.print("ISO NEXT:");
-        Serial.print(canFrameToString(frame));
-      }
-
-      uint8_t sequence = frame.data.u8[0] & 0x0f;
-      if (isoMessage.next == sequence) {
-        for (int i = 1; i < frame.FIR.B.DLC; i++) {
-          if (isoMessage.index < isoMessage.length) {
-            isoMessage.data[isoMessage.index++] = frame.data.u8[i];
-          }
-        }
-
-        // wait for next message, rollover from 15 to 0
-        if (isoMessage.next++ == 15) isoMessage.next = 0;
-
-        // is this the last part?
-        if (isoMessage.index == isoMessage.length) {
-          // output the data
-          String dataString = isoMessageToString(isoMessage);
-          if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) Serial.print(">>ISO MSG:");
-          writeOutgoing(dataString);
-
-          // cancel this message
-          isoMessage.id = 0xffff;
-        }
-      } else {
-        if (cansee_config->mode_debug) Serial.println("E:ISO Out of sequence, resetting");
-        //writeOutgoing("fff,\n");
-        isoMessage.id = 0xffff;
-      }
-    } else {
-      if (cansee_config->mode_debug) Serial.println("E:ISO ignoring unknown frame type:" + String (type));
-    }
-
+    storeIsotpframe (frame, 0);
     led_set (LED_WHITE, false);
-  } else {
-    if (cansee_config->mode_debug) Serial.println("E:ISO frame of unrequested id:" + String(frame.MsgID, HEX));
   }
 }
 
@@ -304,9 +173,9 @@ void processCommand () {
       int count = 0;
       FREEFRAME_t *freeframe;
       for (uint32_t id = 0; id < FREEFRAMEARRAYSIZE; id++) {
-        freeframe = getFreeframe (id);
-        if (freeframe->age) {                    // print length 0 frames, but do not print timeout frames
-          writeOutgoing (bufferedFrameToString (id)); // includes \n
+        freeframe = getFreeframe (id, bus);        // bus is ignored for free frames
+        if (freeframe->age) {                      // print length 0 frames, but do not print timeout frames
+          writeOutgoing (bufferedFrameToString (id, bus)); // includes \n
           count++;
         }
       }
@@ -317,55 +186,21 @@ void processCommand () {
     // get a frame ***********************************************************
     case 'g':
     if (command.id < FREEFRAMEARRAYSIZE) {
-      writeOutgoing (bufferedFrameToString(command.id));
+      writeOutgoing (bufferedFrameToString(command.id, bus));
     } else {
       if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
-      writeOutgoing (bufferedFrameToString(0));
+      writeOutgoing (bufferedFrameToString(0, bus));
     }
     break;
 
     // request an ISO-TP frame ***********************************************
     case 'i':
-    // only accept this command if the requested ID belongs to an ISO-TP frame
-    if (command.id < 0x700 || command.id > 0x7ff) {
-      if (cansee_config->mode_debug) Serial.println ("E:ID out of bounds (0x700 - 0x7ff)");
-      writeOutgoing (String (command.id, HEX) + "\n");
-      return;
+    if (command.id < FREEFRAMEARRAYSIZE) {
+      writeOutgoing (bufferedFrameToString(command.id, bus));
+    } else {
+      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
+      writeOutgoing (bufferedFrameToString(0, bus));
     }
-    // store ID
-    isoMessage.id = command.id;                    // expected ID of answer
-    if ((isoMessage.requestId = getRequestId(command.id)) == 0) { // ID to send request to
-      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:" + String (command.id, HEX) + " has no corresponding request ID");
-      writeOutgoing (String (command.id, HEX) + "\n");
-      return;
-    }
-    // store request
-    isoMessage.requestLength = command.requestLength;
-    if (isoMessage.requestLength > 7) isoMessage.requestLength = 7; // this should never happen
-    for (int i = 0; i < command.requestLength; i++)
-    isoMessage.request[i] = command.request[i];
-
-    CAN_frame_t frame;                             // build the CAN frame
-    frame.FIR.B.FF = CAN_frame_std;                // set the type to 11 bits
-    frame.FIR.B.RTR = CAN_no_RTR;                  // no RTR
-    frame.MsgID = isoMessage.requestId;            // set the ID
-    frame.FIR.B.DLC = 8; //command.requestLength + 1; // set the length. Note some ECU's like DLC 8
-    for (int i = 0; i < frame.FIR.B.DLC; i++)      // zero out frame
-    frame.data.u8[i] = 0;
-
-    // we are assuming here that requests are always single frame. This is formally not true, but good enough for us
-    frame.data.u8[0] = (command.requestLength & 0x0f);
-
-    for (int i = 0; i < command.requestLength; i++)// fill up the other bytes with the request
-    frame.data.u8[i + 1] = command.request[i];
-
-    // send the frame
-    if (cansee_config->mode_debug & DEBUG_COMMAND_ISO) {
-      Serial.print ("> com:Sending ISOTP request:");
-      Serial.print (canFrameToString (frame));
-    }
-    can_send (&frame, bus);
-    // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
     break;
 
     // inject a frame via serial / BT input **********************************
@@ -501,38 +336,4 @@ COMMAND_t decodeCommand (String &input) {
     }
   }
   return result;
-}
-
-
-// convert a ISO-TP message to readable hex output format
-String isoMessageToString(ISO_MESSAGE_t &message) {
-  String dataString = String(message.id, HEX) + ",";
-  for (int i = 0; i < message.length; i++) {
-    dataString += getHex(message.data[i]);
-  }
-  dataString += "\n";
-  return dataString;
-}
-
-// ZOE CAN computer related functions ****************************************
-uint16_t getRequestId(uint16_t responseId) {
-                      // from ECU id   to ECU id
-  if      (responseId == 0x7ec) return 0x7e4; // EVC
-  else if (responseId == 0x7da) return 0x7ca; // TCU
-  else if (responseId == 0x7bb) return 0x79b; // LBC
-  else if (responseId == 0x77e) return 0x75a; // PEB
-  else if (responseId == 0x772) return 0x752; // Airbag
-  else if (responseId == 0x76d) return 0x74d; // UDP
-  else if (responseId == 0x763) return 0x743; // instrument panel
-  else if (responseId == 0x762) return 0x742; // PAS
-  else if (responseId == 0x760) return 0x740; // ABS
-  else if (responseId == 0x7bc) return 0x79c; // UBP
-  else if (responseId == 0x765) return 0x745; // BCM
-  else if (responseId == 0x764) return 0x744; // CLIM
-  else if (responseId == 0x76e) return 0x74e; // UPA
-  else if (responseId == 0x793) return 0x792; // BCB
-  else if (responseId == 0x7b6) return 0x796; // LBC2
-  else if (responseId == 0x722) return 0x702; // LINSCH
-  else if (responseId == 0x767) return 0x747; // AUTOS (R-LINK)
-  else return 0;
 }

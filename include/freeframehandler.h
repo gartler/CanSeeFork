@@ -3,8 +3,12 @@
 
 #include <Arduino.h>
 
+#include "config.h"
 #include "canhandler.h"
 #include "utils.h"
+
+#define DEBUG_BUS_RECEIVE_FF  0x01
+
 
 // Free frames storage *******************************************************
 // all free frames are stored in an array for all 700 free frames. This speeds
@@ -16,9 +20,9 @@ typedef struct {
   uint8_t age;
 } FREEFRAME_t;
 
-void freeframe_init ();
-void storeFreeframe (CAN_frame_t &frame);
-FREEFRAME_t *getFreeframe (uint32_t id);
-String bufferedFrameToString (uint32_t id);
+void freeframe_init (CS_CONFIG_t *config);
+void storeFreeframe (CAN_frame_t &frame, uint8_t bus);
+FREEFRAME_t *getFreeframe (uint32_t id, uint8_t bus);
+String bufferedFrameToString (uint32_t id, uint8_t bus);
 
 #endif
