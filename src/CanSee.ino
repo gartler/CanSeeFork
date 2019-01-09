@@ -51,6 +51,8 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #include "serialhandler.h"
 #include "bluetoothhandler.h"
 #include "wifihandler.h"
+#include "freeframehandler.h"
+#include "utils.h"
 
 // Tidy up defs **************************************************************
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -70,22 +72,6 @@ typedef struct {
   uint8_t replyLength = 0;
   char line[48];
 } COMMAND_t;
-
-// CANbus config *************************************************************
-CAN_device_t CAN_cfg;
-
-// Free frames storage *******************************************************
-// all free frames are stored in an array for all 700 free frames. This speeds
-// up request/response time significantly.
-#define FREEFRAMEARRAYSIZE 0x700
-typedef struct {
-  uint8_t data[8];
-  uint8_t length;
-  uint8_t age;
-} FREEFRAME_t;
-
-FREEFRAME_t freeframes[FREEFRAMEARRAYSIZE];
-//int dataArraySize = SIZE;
 
 // ISO-TP message ************************************************************
 typedef struct {
@@ -139,12 +125,7 @@ void setup() {
   wifi_init (cansee_config, processCommand);
 
   can_init (cansee_config);
-
-  for (int id = 0; id < FREEFRAMEARRAYSIZE; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
-    for (int i = 0; i < 8; i++) freeframes[id].data[i] = 0;
-    freeframes[id].length = 0;
-    freeframes[id].age = 0xff;
-  }
+  freeframe_init ();
 }
 
 // ***************************************************************************
@@ -152,7 +133,7 @@ void loop() {
   // 1. receive next CAN frame from queue
   // removed 3 * portTICK_PERIOD_MS to not block the code
   CAN_frame_t rx_frame;
-  if (xQueueReceive (CAN_cfg.rx_queue, &rx_frame, (TickType_t)0) == pdTRUE) {
+  if (can_receive (&rx_frame)) {
     storeFrame (rx_frame);
   }
 
@@ -172,17 +153,11 @@ void loop() {
 void storeFrame (CAN_frame_t &frame) {
   if (frame.MsgID < 0x700) {                      // free data stream is < 0x700
     led_set (LED_YELLOW, true);
-
     if (cansee_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
       Serial.print ("FF:");
       Serial.print(canFrameToString(frame));
     }
-
-    for (int i = 0; i < 8; i++)                    // store a copy
-      freeframes[frame.MsgID].data[i] = frame.data.u8[i];
-    freeframes[frame.MsgID].length = frame.FIR.B.DLC; // and the length
-    freeframes[frame.MsgID].age = 0xff;            // age to ff
-
+    storeFreeframe (frame);
     led_set (LED_YELLOW, false);
   }
 
@@ -327,8 +302,10 @@ void processCommand () {
     // output all buffered frames ********************************************
     case 'a': {
       int count = 0;
-      for (int id = 0; id < FREEFRAMEARRAYSIZE; id++) {
-        if (freeframes[id].age) {                    // print length 0 frames, but do not print timeout frames
+      FREEFRAME_t *freeframe;
+      for (uint32_t id = 0; id < FREEFRAMEARRAYSIZE; id++) {
+        freeframe = getFreeframe (id);
+        if (freeframe->age) {                    // print length 0 frames, but do not print timeout frames
           writeOutgoing (bufferedFrameToString (id)); // includes \n
           count++;
         }
@@ -526,17 +503,6 @@ COMMAND_t decodeCommand (String &input) {
   return result;
 }
 
-// Converter functions *******************************************************
-
-// convert a CAN_frame to readable hex output format
-String canFrameToString(CAN_frame_t &frame) {
-  String dataString = String(frame.MsgID, HEX) + ",";
-  for (int i = 0; i < frame.FIR.B.DLC; i++) {
-    dataString += getHex(frame.data.u8[i]);
-  }
-  dataString += "\n";
-  return dataString;
-}
 
 // convert a ISO-TP message to readable hex output format
 String isoMessageToString(ISO_MESSAGE_t &message) {
@@ -546,48 +512,6 @@ String isoMessageToString(ISO_MESSAGE_t &message) {
   }
   dataString += "\n";
   return dataString;
-}
-
-// convert a buffered frame to readable hex output format
-String bufferedFrameToString (int id) {
-  String dataString = String (id, HEX) + ",";
-  if (freeframes[id].age) {
-    for (int i = 0; i < freeframes[id].length; i++) {
-      dataString += getHex(freeframes[id].data[i]);
-    }
-  }
-  dataString += "\n";
-  return dataString;
-}
-
-// Utility functions *********************************************************
-String getHexSimple(uint8_t num) {
-  String stringOne =  String(num, HEX);
-  return stringOne;
-}
-
-String getHex(uint8_t num) {
-  String stringOne =  String(num, HEX);
-  if (stringOne.length() < 2) stringOne = "0" + stringOne;
-  return stringOne;
-}
-
-unsigned int hexToDec(String hexString) {
-  unsigned int decValue = 0;
-  int nextInt;
-
-  for (int i = 0; i < hexString.length(); i++) {
-    nextInt = int(hexString.charAt(i));
-    if (nextInt >= 48 && nextInt <= 57)
-    nextInt = map(nextInt, 48, 57, 0, 9);
-    else if (nextInt >= 65 && nextInt <= 70)
-    nextInt = map(nextInt, 65, 70, 10, 15);
-    else if (nextInt >= 97 && nextInt <= 102)
-    nextInt = map(nextInt, 97, 102, 10, 15);
-    nextInt = constrain(nextInt, 0, 15);
-    decValue = (decValue * 16) + nextInt;
-  }
-  return decValue;
 }
 
 // ZOE CAN computer related functions ****************************************

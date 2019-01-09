@@ -2,6 +2,7 @@
 
 static CS_CONFIG_t *can_config;
 static uint8_t used_bus = 1;
+CAN_device_t CAN_cfg;
 
 void can_bus_set () {
   if (used_bus == 1) {
@@ -53,4 +54,18 @@ void can_send_flow (uint16_t requestId) {
   flow.data.u8[6] = 0;                             // fill-up
   flow.data.u8[7] = 0;                             // fill-up
   can_send (&flow, used_bus);
+}
+
+boolean can_receive (CAN_frame_t *rx_frame) {
+  return xQueueReceive (CAN_cfg.rx_queue, rx_frame, (TickType_t)0) == pdTRUE ? true : false;
+}
+
+// convert a CAN_frame to readable hex output format
+String canFrameToString(CAN_frame_t &frame) {
+  String dataString = String(frame.MsgID, HEX) + ",";
+  for (int i = 0; i < frame.FIR.B.DLC; i++) {
+    dataString += getHex(frame.data.u8[i]);
+  }
+  dataString += "\n";
+  return dataString;
 }
