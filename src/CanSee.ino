@@ -18,7 +18,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#define DEBUG_COMMAND_FF      0x08
 
 #define VERSION "001"
 
@@ -63,10 +62,10 @@ CS_CONFIG_t *cansee_config;
 typedef struct {
   char cmd;
   uint32_t id = 0;
-  uint8_t request[8];
-  uint8_t requestLength = 0;
+  uint8_t request[32];
+  uint16_t requestLength = 0;
   uint8_t reply[32];
-  uint8_t replyLength = 0;
+  uint16_t replyLength = 0;
   char line[48];
 } COMMAND_t;
 
@@ -99,19 +98,19 @@ void setup() {
 
   leds_init (cansee_config);
 
-  serial_init (cansee_config, processCommand);
-  bluetooth_init (cansee_config, processCommand);
-  wifi_init (cansee_config, processCommand);
+  serial_init     (cansee_config, processCommand);
+  bluetooth_init  (cansee_config, processCommand);
+  wifi_init       (cansee_config, processCommand);
 
   can_init (cansee_config);
-  freeframe_init (cansee_config);
+  freeframe_init (cansee_config, writeOutgoing);
   isotp_init (cansee_config, writeOutgoing);
+
 }
 
 // ***************************************************************************
 void loop() {
   // 1. receive next CAN frame from queue
-  // removed 3 * portTICK_PERIOD_MS to not block the code
   CAN_frame_t rx_frame;
   if (can_receive (&rx_frame)) {
     storeFrame (rx_frame);
@@ -127,7 +126,6 @@ void loop() {
 
 /*****************************************************************************
 * frame handling function
-* see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
 */
 
 void storeFrame (CAN_frame_t &frame) {
@@ -158,13 +156,13 @@ void readIncoming() {
 
 // execute a command *********************************************************
 void processCommand () {
-  uint8_t bus;
+  uint8_t bus = 0;
 
   if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println("< com:" + readBuffer);
   COMMAND_t command = decodeCommand (readBuffer);    // watch out, passe dby reference, so eaten
 
-  bus = (command.id & 0x40000000) ? 1 : 0;
-  command.id &= 0x1fffffff;                        // allow for 29 bits CAN later
+  //bus = (command.id & 0x40000000) ? 1 : 0;
+  //command.id &= 0x1fffffff;                        // allow for 29 bits CAN later
 
   switch (command.cmd) {
 
@@ -175,7 +173,8 @@ void processCommand () {
       for (uint32_t id = 0; id < FREEFRAMEARRAYSIZE; id++) {
         freeframe = getFreeframe (id, bus);        // bus is ignored for free frames
         if (freeframe->age) {                      // print length 0 frames, but do not print timeout frames
-          writeOutgoing (bufferedFrameToString (id, bus)); // includes \n
+          //writeOutgoing (bufferedFrameToString (id, bus)); // includes \n
+          requestFreeframe (id, bus);
           count++;
         }
       }
@@ -186,20 +185,20 @@ void processCommand () {
     // get a frame ***********************************************************
     case 'g':
     if (command.id < FREEFRAMEARRAYSIZE) {
-      writeOutgoing (bufferedFrameToString(command.id, bus));
+      requestFreeframe (command.id, bus);
     } else {
       if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
-      writeOutgoing (bufferedFrameToString(0, bus));
+      requestFreeframe (0, bus);
     }
     break;
 
     // request an ISO-TP frame ***********************************************
     case 'i':
-    if (command.id < FREEFRAMEARRAYSIZE) {
-      writeOutgoing (bufferedFrameToString(command.id, bus));
+    if (command.id >= 0x700 && command.id <= 0x7ff) {
+      requestIsotp (command.id, command.requestLength, command.request, bus);
     } else {
-      if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:ID out of bounds (0 - 0x6ff)");
-      writeOutgoing (bufferedFrameToString(0, bus));
+      if (cansee_config->mode_debug) Serial.println ("E:ID out of bounds (0x700 - 0x7ff)");
+      requestIsotp (0, 0, 0, 0);
     }
     break;
 
@@ -211,7 +210,7 @@ void processCommand () {
       for (int i = 0; i < command.requestLength; i++)
       frame.data.u8[i] = command.request[i];
       if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:Injecting " + canFrameToString (frame));
-      storeFrame(frame);
+      storeFrame (frame);
       // storeframe will output if free frame or ISO-TP Single
       // writeOutgoing (String (command.id, HEX) + "\n");
     }

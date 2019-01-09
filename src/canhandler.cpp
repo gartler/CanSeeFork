@@ -1,11 +1,11 @@
 #include "canhandler.h"
 
 static CS_CONFIG_t *can_config;
-static uint8_t used_bus = 1;
+static uint8_t used_bus;
 CAN_device_t CAN_cfg;
 
 void can_bus_set () {
-  if (used_bus == 1) {
+  if (used_bus == 0) {
     CAN_cfg.speed = (CAN_speed_t)can_config->can1_speed;               // init the CAN bus (pins and baudrate)
     CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can1_tx;
     CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can1_rx;
@@ -18,6 +18,7 @@ void can_bus_set () {
 
 void can_init (CS_CONFIG_t *config) {
   can_config = config;
+  used_bus = 0;
   can_bus_set ();
   // create a generic RTOS queue for CAN receiving, with 10 positions
   CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
@@ -30,12 +31,18 @@ void can_init (CS_CONFIG_t *config) {
 }
 
 void can_send (CAN_frame_t *frame, uint8_t bus) {
-  if (bus != used_bus) {
-    used_bus = bus;
+  /* if (bus != used_bus) {                           // at this moment, a bus switch like this crashes
+    used_bus = bus;                                // added new queue to test
     ESP32Can.CANStop();
+    vQueueDelete (CAN_cfg.rx_queue);
     can_bus_set ();
-    ESP32Can.CANInit();                              // initialize CAN Module
-  }
+    CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
+    if (CAN_cfg.rx_queue == 0) {
+      if (can_config->mode_debug) Serial.println("Can't create CANbus buffer. Stopping");
+      while (1);
+    }
+    ESP32Can.CANInit();                            // initialize CAN Module
+  } */
   ESP32Can.CANWriteFrame (frame);
 }
 

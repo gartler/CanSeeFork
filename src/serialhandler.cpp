@@ -19,7 +19,7 @@ void readIncomingSerial (String &readBuffer) {
   char ch = Serial.read();
   if (ch == '\n' || ch == '\r') {
     if (readBuffer != "") {
-      serial_process ();
+      if (serial_process) serial_process ();
       readBuffer = "";
     }
   } else {

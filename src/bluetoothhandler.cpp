@@ -24,7 +24,7 @@ void readIncomingBluetooth (String &readBuffer) {
   char ch = SerialBT.read();
   if (ch == '\n' || ch == '\r') {
     if (readBuffer != "") {
-      bluetooth_process ();
+      if (bluetooth_process) bluetooth_process ();
       readBuffer = "";
     }
   } else {

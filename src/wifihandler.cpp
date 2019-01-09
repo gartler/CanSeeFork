@@ -9,10 +9,9 @@ WiFiClient serverClients[MAX_SRV_CLIENTS];
 void wifi_init (CS_CONFIG_t *config, void (*p)()) {
   wifi_config = config;
   wifi_process = p;
-
   if (wifi_config->mode_bluetooth) {
     wifi_config->mode_wifi = 0;
-    if (wifi_config->mode_debug) Serial.println("Wifi can not coexist with Bluetoothn and is disabled.");
+    if (wifi_config->mode_debug) Serial.println ("Wifi can not coexist with Bluetooth and is disabled.");
   }
 
   if (wifi_config->mode_wifi == WIFI_SOFTAP) {
@@ -112,7 +111,7 @@ void readIncomingWiFi (String &readBuffer) {
         char ch = serverClients[i].read();         // get it
         if (ch == '\n' || ch == '\r') {            // buffer / process it
           if (readBuffer != "") {
-            wifi_process();
+            if (wifi_process) wifi_process();
             readBuffer = "";
           }
         } else {

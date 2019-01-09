@@ -6,6 +6,10 @@
 #define WIFI_STATION 1
 #define WIFI_SOFTAP  2
 
+#define DEBUG_COMMAND_FF      0x08
+#define DEBUG_COMMAND         0x04
+#define DEBUG_BUS_RECEIVE_FF  0x01
+#define DEBUG_COMMAND_ISO     0x10
 
 // Config ********************************************************************
 // structure that defines the firmware's configuration

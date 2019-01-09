@@ -11,6 +11,8 @@
 #define DEBUG_COMMAND         0x04
 #define DEBUG_BUS_RECEIVE_ISO 0x02
 
+// see https://en.wikipedia.org/wiki/ISO_15765-2 for ISO-TP
+
 // ISO-TP message ************************************************************
 typedef struct {
   uint32_t id = 0xffffffff;                        // the from-address of the responding device
@@ -28,8 +30,9 @@ typedef struct {
 
 void isotp_init (CS_CONFIG_t *config, void (*p)(String o));
 void storeIsotpframe (CAN_frame_t &frame, uint8_t bus);
-String isoMessageToString(ISO_MESSAGE_t &message);
+String isoMessageToString (ISO_MESSAGE_t &message);
 void can_send_flow (uint16_t requestId, uint8_t flow);
-String isoMessageToString(ISO_MESSAGE_t &message);
+void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus);
+String isoMessageToString (ISO_MESSAGE_t &message);
 
 #endif

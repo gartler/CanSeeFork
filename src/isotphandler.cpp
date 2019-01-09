@@ -4,8 +4,6 @@ static CS_CONFIG_t *isotp_config;
 static void (*isotp_process)(String o);
 static ISO_MESSAGE_t isoMessage;                   // declare an ISO-TP message
 
-#define DEBUG_COMMAND_ISO     0x10
-
 void isotp_init (CS_CONFIG_t *config, void (*p)(String o)) {
   isotp_config = config;
   isotp_process = p;
@@ -139,10 +137,9 @@ void can_send_flow (uint16_t requestId, uint8_t bus) {
   can_send (&flow, bus);
 }
 
-void request (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
+void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
   // only accept this command if the requested ID belongs to an ISO-TP frame
   if (id < 0x700 || id > 0x7ff) {
-    if (isotp_config->mode_debug) Serial.println ("E:ID out of bounds (0x700 - 0x7ff)");
     isotp_process (String (id, HEX) + "\n");
     return;
   }
@@ -186,7 +183,7 @@ void request (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
 }
 
 // convert a ISO-TP message to readable hex output format
-String isoMessageToString(ISO_MESSAGE_t &message) {
+String isoMessageToString (ISO_MESSAGE_t &message) {
   String dataString = String(message.id, HEX) + ",";
   for (int i = 0; i < message.length; i++) {
     dataString += getHex(message.data[i]);
