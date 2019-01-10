@@ -26,7 +26,7 @@ void can_init (CS_CONFIG_t *config) {
     if (can_config->mode_debug) Serial.println("Can't create CANbus buffer. Stopping");
     while (1);
   }
-  if (can_config->mode_debug) Serial.println("CAN starting ...");
+  if (can_config->mode_debug) Serial.println("CANbus started");
   ESP32Can.CANInit();                              // initialize CAN Module
 }
 

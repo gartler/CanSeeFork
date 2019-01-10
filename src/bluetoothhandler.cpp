@@ -8,7 +8,7 @@ void bluetooth_init (CS_CONFIG_t *config, void (*p)()) {
   bluetooth_config = config;
   bluetooth_process = p;
   if (bluetooth_config->mode_bluetooth) {
-    if (bluetooth_config->mode_debug) Serial.println("Bluetooth " + String (bluetooth_config->name_bluetooth) + " starting ...");
+    if (bluetooth_config->mode_debug) Serial.println("Bluetooth '" + String (bluetooth_config->name_bluetooth) + "' started.");
     SerialBT.begin(bluetooth_config->name_bluetooth); // init Bluetooth serial, no password in current framework
   }
 }

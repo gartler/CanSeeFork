@@ -3,14 +3,14 @@
 
 static CS_CONFIG_t cs_config;
 
-void setConfigDefault_2 () {
-  cs_config.version                   = 2;         // change if length of config changes
+void setConfigDefault_3 () {
+  cs_config.version                   = 3;         // change if length of config changes
   cs_config.can0_rx                   = GPIO_NUM_4;
   cs_config.can0_tx                   = GPIO_NUM_5;
-  cs_config.can0_speed                = (byte)CAN_SPEED_500KBPS;
+  cs_config.can0_speed                = (uint16_t)CAN_SPEED_500KBPS;
   cs_config.can1_rx                   = GPIO_NUM_18;
   cs_config.can1_tx                   = GPIO_NUM_19;
-  cs_config.can1_speed                = (byte)CAN_SPEED_250KBPS;
+  cs_config.can1_speed                = (uint16_t)CAN_SPEED_250KBPS;
 }
 
 void setConfigDefault () {
@@ -18,7 +18,7 @@ void setConfigDefault () {
   cs_config.version                   = 1;         // change if length of config changes
   cs_config.mode_serial               = 1;
   cs_config.mode_bluetooth            = 1;
-  cs_config.mode_wifi                 = WIFI_SOFTAP;
+  cs_config.mode_wifi                 = 0;         // WIFI_SOFTAP;
   cs_config.mode_debug                = 0xff;
   cs_config.mode_leds                 = 0;
   strcpy (cs_config.name_bluetooth,   "CANSee");
@@ -27,7 +27,7 @@ void setConfigDefault () {
   strcpy (cs_config.password_ap,      "CANSeeMe");
   strcpy (cs_config.ssid_station,     "Home");
   strcpy (cs_config.password_station, "Password");
-  setConfigDefault_2 ();
+  setConfigDefault_3 ();
 }
 
 CS_CONFIG_t *getConfigFromEeprom () {
@@ -41,8 +41,12 @@ CS_CONFIG_t *getConfigFromEeprom () {
     Serial.println ("Not a valid EEPROM record");
     setConfigToEeprom (true);
   }
-  if (cs_config.version == 1) {
-    setConfigDefault_2 ();
+  if (cs_config.version != 3) {
+    Serial.println ("EEPROM structure changed");
+    EEPROM.end ();
+    setConfigDefault_3 ();
+    setConfigToEeprom (false);
+    return &cs_config;
   }
   EEPROM.end ();
   return &cs_config;

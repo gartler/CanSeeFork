@@ -29,10 +29,10 @@ typedef struct {
   char password_station [16];
   byte can0_rx;
   byte can0_tx;
-  byte can0_speed;
+  uint16_t can0_speed;
   byte can1_rx;
   byte can1_tx;
-  byte can1_speed;
+  uint16_t can1_speed;
 } CS_CONFIG_t;
 
 CS_CONFIG_t *getConfigFromEeprom ();

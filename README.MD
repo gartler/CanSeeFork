@@ -36,15 +36,9 @@ xxx config
 400 Set the WiFi ssid for Station mode (Home)
 401 Set the WiFi password for Station mode (Password)
 500 Set CANbus parameter for can0 in hex as sprxtx
-      sp: speed
-        00 for 100 kbps
-        01 for 125 kbps
-        02 for 250 kbps
-        04 for 500 kbps (for can1)
-        03 for 800 kbps (for can0)
-        05 for 1 mbps
-      rx: Rx pin of transceiver (4 for can0, 18 for can1)
-      tx: Tx pin of transceiver (5 for can0, 19 for can1)
+      sp: speed in 25 kbps increments. (0x14 for can0, 0x0a for can1)
+      rx: Rx pin of transceiver (4 for can0, 0x12 for can1)
+      tx: Tx pin of transceiver (5 for can0, 0x13 for can1)
       Note that this is a very advanced setting and selecting pins that are
       internally used on your board (notably 6-11) will crash the board. Also
       pins 34 and up are input only.

@@ -89,13 +89,13 @@ void setup() {
 
   if (cansee_config->mode_debug) {
     Serial.print   ("Version:   "); Serial.println (VERSION);
-    Serial.println ("Serial:    " + String (cansee_config->mode_serial   , HEX));
-    Serial.println ("Bluetooth: " + String (cansee_config->mode_bluetooth, HEX));
-    Serial.println ("WiFi:      " + String (cansee_config->mode_wifi     , HEX));
-    Serial.println ("Leds:      " + String (cansee_config->mode_leds     , HEX));
-    Serial.println ("Debug:     " + String (cansee_config->mode_debug    , HEX));
-    Serial.println ("CANbus0:   " + String (cansee_config->can0_speed    , HEX) + String (cansee_config->can0_rx, HEX) + String (cansee_config->can0_tx, HEX));
-    Serial.println ("CANbus1*   " + String (cansee_config->can1_speed    , HEX) + String (cansee_config->can1_rx, HEX) + String (cansee_config->can1_tx, HEX));
+    Serial.println ("Serial:    " + getHex (cansee_config->mode_serial   ));
+    Serial.println ("Bluetooth: " + getHex (cansee_config->mode_bluetooth));
+    Serial.println ("WiFi:      " + getHex (cansee_config->mode_wifi     ));
+    Serial.println ("Leds:      " + getHex (cansee_config->mode_leds     ));
+    Serial.println ("Debug:     " + getHex (cansee_config->mode_debug    ));
+    Serial.println ("CANbus0:   " + getHex (cansee_config->can0_speed / 25) + getHex (cansee_config->can0_rx) + getHex (cansee_config->can0_tx));
+    Serial.println ("CANbus1*   " + getHex (cansee_config->can1_speed / 25) + getHex (cansee_config->can1_rx) + getHex (cansee_config->can1_tx));
   }
 
   leds_init (cansee_config);
@@ -257,11 +257,11 @@ void processCommand () {
       strncpy (cansee_config->password_station, command.line + 5, sizeof (cansee_config->password_station));
       break;
       case 0x500: // can1
-      cansee_config->can0_speed      = command.request [0];
+      cansee_config->can0_speed      = command.request [0] * 25;
       cansee_config->can0_rx         = command.request [1];
       cansee_config->can0_tx         = command.request [2];
       case 0x501: // can2
-      cansee_config->can1_speed      = command.request [0];
+      cansee_config->can1_speed      = command.request [0] + 25;
       cansee_config->can1_rx         = command.request [1];
       cansee_config->can1_tx         = command.request [2];
       break;
