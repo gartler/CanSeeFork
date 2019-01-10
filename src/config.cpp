@@ -4,28 +4,28 @@
 static CS_CONFIG_t cs_config;
 
 void setConfigDefault_2 () {
-  cs_config.version = 2;                             // change if length of config changes
-  cs_config.can1_rx = GPIO_NUM_4;
-  cs_config.can1_tx = GPIO_NUM_5;
-  cs_config.can1_speed = (byte)CAN_SPEED_500KBPS;
-  cs_config.can2_rx = GPIO_NUM_6;                    // reserved for future use
-  cs_config.can2_tx = GPIO_NUM_7;
-  cs_config.can2_speed = (byte)CAN_SPEED_250KBPS;
+  cs_config.version                   = 2;         // change if length of config changes
+  cs_config.can0_rx                   = GPIO_NUM_4;
+  cs_config.can0_tx                   = GPIO_NUM_5;
+  cs_config.can0_speed                = (byte)CAN_SPEED_500KBPS;
+  cs_config.can1_rx                   = GPIO_NUM_18;
+  cs_config.can1_tx                   = GPIO_NUM_19;
+  cs_config.can1_speed                = (byte)CAN_SPEED_250KBPS;
 }
 
 void setConfigDefault () {
-  cs_config.magicnumber = 0x0caacee0;                // does that read CanSee?
-  cs_config.version = 1;                             // change if length of config changes
-  cs_config.mode_serial = 1;
-  cs_config.mode_bluetooth = 1;
-  cs_config.mode_wifi = WIFI_SOFTAP;
-  cs_config.mode_debug = 0xff;
-  cs_config.mode_leds = 0;
-  strcpy (cs_config.name_bluetooth, "CANSee");
-  strcpy (cs_config.pin_bluetooth, "1234");          // not implemented in framework yet
-  strcpy (cs_config.ssid_ap, "CANSee");
-  strcpy (cs_config.password_ap, "CANSeeMe");
-  strcpy (cs_config.ssid_station, "Home");
+  cs_config.magicnumber = 0x0caacee0;              // does that read CanSee?
+  cs_config.version                   = 1;         // change if length of config changes
+  cs_config.mode_serial               = 1;
+  cs_config.mode_bluetooth            = 1;
+  cs_config.mode_wifi                 = WIFI_SOFTAP;
+  cs_config.mode_debug                = 0xff;
+  cs_config.mode_leds                 = 0;
+  strcpy (cs_config.name_bluetooth,   "CANSee");
+  strcpy (cs_config.pin_bluetooth,    "1234");     // not implemented in framework yet
+  strcpy (cs_config.ssid_ap,          "CANSee");
+  strcpy (cs_config.password_ap,      "CANSeeMe");
+  strcpy (cs_config.ssid_station,     "Home");
   strcpy (cs_config.password_station, "Password");
   setConfigDefault_2 ();
 }
