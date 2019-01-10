@@ -20,7 +20,7 @@ void storeFreeframe (CAN_frame_t &frame, uint8_t bus) {
     return;
   }
   if (freeframe_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
-    Serial.print ("FF:");
+    Serial.print ("< can:FF:");
     Serial.print(canFrameToString(frame));
   }
   for (int i = 0; i < 8; i++) {                   // store a copy
