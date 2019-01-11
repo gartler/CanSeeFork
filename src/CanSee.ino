@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "001"
+#define VERSION "002"
 
 #define SERIAL_BPS 115200
 
@@ -262,12 +262,12 @@ void processCommand () {
       case 0x401:
       strncpy (cansee_config->password_station, command.line + 5, sizeof (cansee_config->password_station));
       break;
-      case 0x500: // can1
+      case 0x500: // can0
       cansee_config->can0_speed      = command.request [0] * 25;
       cansee_config->can0_rx         = command.request [1];
       cansee_config->can0_tx         = command.request [2];
-      case 0x501: // can2
-      cansee_config->can1_speed      = command.request [0] + 25;
+      case 0x501: // can1
+      cansee_config->can1_speed      = command.request [0] * 25;
       cansee_config->can1_rx         = command.request [1];
       cansee_config->can1_tx         = command.request [2];
       break;
