@@ -238,6 +238,9 @@ void processCommand () {
       cansee_config->mode_leds       = command.request [3];
       cansee_config->mode_debug      = command.request [4];
       break;
+      case 0x101: // get mode flags
+      writeOutgoing (getHex (cansee_config->mode_serial) + getHex (cansee_config->mode_bluetooth) + getHex (cansee_config->mode_wifi) + getHex (cansee_config->mode_leds) + getHex (cansee_config->mode_debug) + "\n");
+      break;
       case 0x200:
       strncpy (cansee_config->name_bluetooth, command.line + 5, sizeof (cansee_config->name_bluetooth));
       break;
