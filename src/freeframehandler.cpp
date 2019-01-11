@@ -15,10 +15,7 @@ void freeframe_init (CS_CONFIG_t *config, void (*p)(String o)) {
 }
 
 void storeFreeframe (CAN_frame_t &frame, uint8_t bus) {
-  if (frame.MsgID < FREEFRAMEARRAYSIZE) {
-    //freeframe_process (String (frame.MsgID, HEX) + "\n");
-    return;
-  }
+  if (!(frame.MsgID < FREEFRAMEARRAYSIZE)) return;
   if (freeframe_config->mode_debug & DEBUG_BUS_RECEIVE_FF) {
     Serial.print ("< can:FF:");
     Serial.print(canFrameToString(frame));

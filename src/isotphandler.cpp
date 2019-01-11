@@ -30,8 +30,12 @@ void isotp_ticker () {
   frame.FIR.B.DLC = 8; //command.requestLength + 1;// set the length. Note some ECU's like DLC 8
 
   frame.data.u8[0] = 0x20 | (isoMessageOutgoing.next++ & 0x0f);
-  for (int i = 0; i < 7 && isoMessageOutgoing.index < isoMessageOutgoing.length; i++) {
-    frame.data.u8[i + 1] = isoMessageOutgoing.data[isoMessageOutgoing.index++];
+  int i;
+  for (i = 0; i < 7 && isoMessageOutgoing.index < isoMessageOutgoing.length; i++) {
+    frame.data.u8[i+1] = isoMessageOutgoing.data[isoMessageOutgoing.index++];
+  }
+  for (; i < 7; i++) {
+    frame.data.u8[i+1] = 0;
   }
 
   // send the frame
@@ -63,8 +67,8 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
       isoMessageIncoming.length = messageLength;
 
       // fill up with this initial first-frame data (should always be 6)
-      for (int i = 0; i < isoMessageIncoming.length; i++) {
-        isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i+1];
+      for (int i = 1; i < frame.FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++) {
+        isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i];
       }
       if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) Serial.print("> can:ISO MSG:");
       isotp_process (isoMessageToString (isoMessageIncoming));
@@ -85,8 +89,8 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
       messageLength |= frame.data.u8[1];
       if (messageLength > 4096) messageLength = 4096; // this should never happen
       isoMessageIncoming.length = messageLength;
-      for (int i = 0; i < 6; i++) {                // was starting at 4?
-        isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i+2];
+      for (int i = 2; i < 8; i++) {
+        isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i];
       }
     }
 
@@ -99,12 +103,12 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
 
       uint8_t sequence = frame.data.u8[0] & 0x0f;
       if (isoMessageIncoming.next == sequence) {
-        for (int i = 0; i < frame.FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++) {
-          isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i+1];
+        for (int i = 1; i < frame.FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++) {
+          isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i];
         }
 
         // wait for next message, rollover from 15 to 0
-        isoMessageIncoming.next = isoMessageIncoming.next++ & 0x0f;
+        isoMessageIncoming.next = isoMessageIncoming.next == 15 ? 0 : isoMessageIncoming.next + 1;
 
         // is this the last part?
         if (isoMessageIncoming.index == isoMessageIncoming.length) {
@@ -120,7 +124,7 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
       }
       // incoming flow control ***********************************************
     } else if (type == 0x3) {
-      uint8_t flag = isoMessageIncoming.data[0] &0x0f;
+      //uint8_t flag = isoMessageIncoming.data[0] &0x0f;
       isoMessageOutgoing.flow_block = frame.data.u8[1];
       isoMessageOutgoing.flow_delay = frame.data.u8[2] <= 127 ? frame.data.u8[2] * 1000 : frame.data.u8[2] - 0xf0;
 
@@ -169,7 +173,7 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
   }
   // store request to send
   isoMessageOutgoing.length = length;
-  if (isoMessageIncoming.length > 4096) isoMessageIncoming.length = 4096; // this should never happen (yet)
+  if (isoMessageOutgoing.length > 4096) isoMessageOutgoing.length = 4096; // this should never happen (yet)
   for (uint16_t i = 0; i < length; i++) {
     isoMessageOutgoing.data[i] = request[i];
   }
@@ -183,10 +187,10 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
   if (isoMessageOutgoing.length <= 6) {             // send SING frame
     frame.data.u8[0] = (isoMessageOutgoing.length & 0x0f);
     for (int i = 0; i < isoMessageOutgoing.length; i++) { // fill up the other bytes with the request
-      frame.data.u8[i + 1] = isoMessageOutgoing.data[i];
+      frame.data.u8[i+1] = isoMessageOutgoing.data[i];
     }
-    for (int i = isoMessageOutgoing.length; i < 8; i++) {
-      frame.data.u8[i] = 0;                        // zero out frame
+    for (int i = isoMessageOutgoing.length; i < 7; i++) {
+      frame.data.u8[i+1] = 0;                        // zero out frame
     }
     // send the frame
     if (isotp_config->mode_debug & DEBUG_COMMAND_ISO) {
@@ -204,7 +208,7 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
     frame.data.u8[0] = (uint8_t)(0x10 + ((length >> 8) & 0x0f));
     frame.data.u8[1] = (uint8_t)(length & 0xff);
     for (int i = 0; i < 6; i++) {                  // fill up the other bytes with the request
-      frame.data.u8[i + 2] = isoMessageOutgoing.data[isoMessageIncoming.index++];
+      frame.data.u8[i + 2] = isoMessageOutgoing.data[isoMessageOutgoing.index++];
     }
     // send the frame
     if (isotp_config->mode_debug & DEBUG_COMMAND_ISO) {
