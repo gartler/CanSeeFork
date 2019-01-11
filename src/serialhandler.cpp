@@ -1,11 +1,9 @@
 #include "serialhandler.h"
 
 static CS_CONFIG_t *serial_config;
-static void (*serial_process)();
 
-void serial_init (CS_CONFIG_t *config, void (*p)()) {              // Serial is already running
-  serial_config = config;
-  serial_process = p;
+void serial_init () {                              // Serial is already running
+  serial_config = getConfig ();
   if (!serial_config->mode_serial && !serial_config->mode_debug) Serial.end();
 }
 
@@ -19,7 +17,7 @@ void readIncomingSerial (String &readBuffer) {
   char ch = Serial.read();
   if (ch == '\n' || ch == '\r') {
     if (readBuffer != "") {
-      if (serial_process) serial_process ();
+      if (serial_config->command_handler) serial_config->command_handler ();
       readBuffer = "";
     }
   } else {

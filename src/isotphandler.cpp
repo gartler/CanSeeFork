@@ -1,13 +1,11 @@
 #include "isotphandler.h"
 
 static CS_CONFIG_t *isotp_config;
-static void (*isotp_process)(String o);
 static ISO_MESSAGE_t isoMessageIncoming;           // declare an ISO-TP message
 static ISO_MESSAGE_t isoMessageOutgoing;           // declare an ISO-TP message
 
-void isotp_init (CS_CONFIG_t *config, void (*p)(String o)) {
-  isotp_config = config;
-  isotp_process = p;
+void isotp_init () {
+  isotp_config = getConfig ();
   isoMessageIncoming.id = isoMessageOutgoing.id = 0xffff;
   isoMessageIncoming.length = isoMessageIncoming.index = isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
 }
@@ -71,7 +69,7 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
         isoMessageIncoming.data[isoMessageIncoming.index++] = frame.data.u8[i];
       }
       if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) Serial.print("> can:ISO MSG:");
-      isotp_process (isoMessageToString (isoMessageIncoming));
+      if (isotp_config->output_handler) isotp_config->output_handler (isoMessageToString (isoMessageIncoming));
       isoMessageIncoming.id = 0xffff;              // cancel this message so nothing will be added intil it is re-initialized
     }
 
@@ -115,7 +113,7 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
           // output the data
           String dataString = isoMessageToString(isoMessageIncoming);
           if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO) Serial.print("> can:ISO MSG:");
-          isotp_process (dataString);
+          if (isotp_config->output_handler) isotp_config->output_handler (dataString);
           isoMessageIncoming.id = 0xffff;              // cancel this message so nothing will be added intil it is re-initialized
         }
       } else {
@@ -158,7 +156,7 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
   CAN_frame_t frame;                             // build the CAN frame
   // only accept this command if the requested ID belongs to an ISO-TP frame
   if (id < 0x700 || id > 0x7ff) {
-    isotp_process (String (id, HEX) + "\n");
+    if (isotp_config->output_handler) isotp_config->output_handler (String (id, HEX) + "\n");
     return;
   }
   // prepare the incoming message
@@ -168,7 +166,7 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
 
   if ((isoMessageOutgoing.id = getRequestId (id)) == 0) { // ID to send request to
     if (isotp_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:" + String (id, HEX) + " has no corresponding request ID");
-    isotp_process (String (id, HEX) + "\n");
+    if (isotp_config->output_handler) isotp_config->output_handler (String (id, HEX) + "\n");
     return;
   }
   // store request to send

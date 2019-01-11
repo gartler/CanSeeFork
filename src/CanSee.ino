@@ -79,13 +79,15 @@ void setup() {
   Serial.println ("");
   Serial.println ("CANSee starting...");
 
-  delay (500);                                      // give user chance to press BUT
+  delay (500);                                     // give user chance to press BUT
   pinMode (0, INPUT);
-  if (!digitalRead (0)) {                           // if pressed
+  if (!digitalRead (0)) {                          // if pressed
     Serial.println("Reset config...");
     setConfigToEeprom (true);
   }
-  cansee_config = getConfigFromEeprom ();           // invalid config will reset too
+  cansee_config = getConfig ();                    // invalid config will reset too
+  cansee_config->output_handler = writeOutgoing;
+  cansee_config->command_handler = processCommand;
 
   if (cansee_config->mode_debug) {
     Serial.print   ("Version:   "); Serial.println (VERSION);
@@ -98,15 +100,15 @@ void setup() {
     Serial.println ("CANbus1*   " + getHex (cansee_config->can1_speed / 25) + getHex (cansee_config->can1_rx) + getHex (cansee_config->can1_tx));
   }
 
-  leds_init (cansee_config);
+  leds_init ();
 
-  serial_init     (cansee_config, processCommand);
-  bluetooth_init  (cansee_config, processCommand);
-  wifi_init       (cansee_config, processCommand);
+  serial_init ();
+  bluetooth_init ();
+  wifi_init ();
 
-  can_init (cansee_config);
-  freeframe_init (cansee_config, writeOutgoing);
-  isotp_init (cansee_config, writeOutgoing);
+  can_init ();
+  freeframe_init ();
+  isotp_init ();
 
 }
 
@@ -120,6 +122,7 @@ void loop() {
 
   // 2. proceed with input (serial & BT)
   readIncoming ();
+  //isotp_ticker ();
 
   // 3. age data array of free frames
   // to do

@@ -18,7 +18,7 @@ typedef struct {
   uint8_t age;
 } FREEFRAME_t;
 
-void freeframe_init (CS_CONFIG_t *config, void (*p)(String o));
+void freeframe_init ();
 void storeFreeframe (CAN_frame_t &frame, uint8_t bus);
 FREEFRAME_t *getFreeframe (uint32_t id, uint8_t bus);
 void requestFreeframe  (uint32_t id, uint8_t bus);

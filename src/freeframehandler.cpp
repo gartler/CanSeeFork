@@ -1,12 +1,10 @@
 #include "freeframehandler.h"
 
 static CS_CONFIG_t *freeframe_config;
-static void (*freeframe_process)(String o);
 static FREEFRAME_t freeframes[FREEFRAMEARRAYSIZE];
 
-void freeframe_init (CS_CONFIG_t *config, void (*p)(String o)) {
-  freeframe_config = config;
-  freeframe_process = p;
+void freeframe_init () {
+  freeframe_config = getConfig ();
   for (int id = 0; id < FREEFRAMEARRAYSIZE; id++) {     // clear the free frame buffer. Data zeroed, length zeroed, not timed out
     for (int i = 0; i < 8; i++) freeframes[id].data[i] = 0;
     freeframes[id].length = 0;
@@ -33,7 +31,9 @@ FREEFRAME_t *getFreeframe (uint32_t id, uint8_t bus) {
 }
 
 void requestFreeframe  (uint32_t id, uint8_t bus) {
-  freeframe_process (bufferedFrameToString (id, bus));
+  if (freeframe_config->output_handler) {
+    freeframe_config->output_handler (bufferedFrameToString (id, bus));
+  }
 }
 
 // convert a buffered frame to readable hex output format

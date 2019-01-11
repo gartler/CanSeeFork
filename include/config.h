@@ -33,9 +33,13 @@ typedef struct {
   byte can1_rx;
   byte can1_tx;
   uint16_t can1_speed;
+  //** past this line will NOT be initialized by EEPROM but it global data
+  uint8_t bus;
+  void (*command_handler)();                       // command handler
+  void (*output_handler)(String o);                // output handler
 } CS_CONFIG_t;
 
-CS_CONFIG_t *getConfigFromEeprom ();
+CS_CONFIG_t *getConfig ();
 void setConfigToEeprom (bool reset);
 
 #endif

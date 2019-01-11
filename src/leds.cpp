@@ -2,8 +2,8 @@
 
 static CS_CONFIG_t *leds_config;
 
-void leds_init (CS_CONFIG_t *config) {
-  leds_config = config;
+void leds_init () {
+  leds_config = getConfig ();
   if (!leds_config->mode_leds) return;
 
   // setup LED's

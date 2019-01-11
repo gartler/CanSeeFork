@@ -5,7 +5,7 @@
 
 #include "config.h"
 
-void serial_init (CS_CONFIG_t *config, void (*p)());
+void serial_init ();
 void writeOutgoingSerial (String o);
 void readIncomingSerial (String &readBuffer);
 

@@ -16,8 +16,8 @@ void can_bus_set () {
   }
 }
 
-void can_init (CS_CONFIG_t *config) {
-  can_config = config;
+void can_init () {
+  can_config = getConfig ();
   used_bus = 0;
   can_bus_set ();
   // create a generic RTOS queue for CAN receiving, with 10 positions

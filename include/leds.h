@@ -13,7 +13,7 @@
 #define LED_ON LOW      // active LOW
 #define LED_OFF HIGH
 
-void leds_init (CS_CONFIG_t *config);
+void leds_init ();
 void led_set (unsigned led, bool on);
 
 #endif

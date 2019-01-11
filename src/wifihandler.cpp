@@ -1,14 +1,12 @@
 #include "wifihandler.h"
 
 static CS_CONFIG_t *wifi_config;
-static void (*wifi_process)();
 static boolean wiFiIsActive = false;
 WiFiServer server(35000);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
 
-void wifi_init (CS_CONFIG_t *config, void (*p)()) {
-  wifi_config = config;
-  wifi_process = p;
+void wifi_init () {
+  wifi_config = getConfig ();
   if (!wifi_config->mode_wifi) return;
   if (wifi_config->mode_bluetooth) {
     wifi_config->mode_wifi = 0;
@@ -112,7 +110,7 @@ void readIncomingWiFi (String &readBuffer) {
         char ch = serverClients[i].read();         // get it
         if (ch == '\n' || ch == '\r') {            // buffer / process it
           if (readBuffer != "") {
-            if (wifi_process) wifi_process();
+            if (wifi_config->command_handler) wifi_config->command_handler ();
             readBuffer = "";
           }
         } else {

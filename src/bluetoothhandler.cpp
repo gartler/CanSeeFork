@@ -2,11 +2,9 @@
 
 static CS_CONFIG_t *bluetooth_config;
 static BluetoothSerial SerialBT;
-static void (*bluetooth_process)();
 
-void bluetooth_init (CS_CONFIG_t *config, void (*p)()) {
-  bluetooth_config = config;
-  bluetooth_process = p;
+void bluetooth_init () {
+  bluetooth_config = getConfig ();
   if (bluetooth_config->mode_bluetooth) {
     if (bluetooth_config->mode_debug) Serial.println("Bluetooth '" + String (bluetooth_config->name_bluetooth) + "' started.");
     SerialBT.begin(bluetooth_config->name_bluetooth); // init Bluetooth serial, no password in current framework
@@ -24,7 +22,7 @@ void readIncomingBluetooth (String &readBuffer) {
   char ch = SerialBT.read();
   if (ch == '\n' || ch == '\r') {
     if (readBuffer != "") {
-      if (bluetooth_process) bluetooth_process ();
+      if (bluetooth_config->command_handler) bluetooth_config->command_handler ();
       readBuffer = "";
     }
   } else {

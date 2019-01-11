@@ -2,6 +2,7 @@
 #include "CAN_config.h"
 
 static CS_CONFIG_t cs_config;
+static bool fetched = false;
 
 void setConfigDefault_3 () {
   cs_config.version                   = 3;         // change if length of config changes
@@ -12,6 +13,16 @@ void setConfigDefault_3 () {
   cs_config.can1_tx                   = GPIO_NUM_19;
   cs_config.can1_speed                = (uint16_t)CAN_SPEED_250KBPS;
 }
+/*
+void setConfigDefault_3 () {
+}
+*/
+void setConfigRam () {
+  cs_config.bus = 0;
+  cs_config.command_handler = NULL;
+  cs_config.output_handler = NULL;
+  fetched = true;
+}
 
 void setConfigDefault () {
   cs_config.magicnumber = 0x0caacee0;              // does that read CanSee?
@@ -19,7 +30,7 @@ void setConfigDefault () {
   cs_config.mode_serial               = 1;
   cs_config.mode_bluetooth            = 1;
   cs_config.mode_wifi                 = 0;         // WIFI_SOFTAP;
-  cs_config.mode_debug                = 0xff;
+  cs_config.mode_debug                = 0xf6;
   cs_config.mode_leds                 = 0;
   strcpy (cs_config.name_bluetooth,   "CANSee");
   strcpy (cs_config.pin_bluetooth,    "1234");     // not implemented in framework yet
@@ -28,27 +39,39 @@ void setConfigDefault () {
   strcpy (cs_config.ssid_station,     "Home");
   strcpy (cs_config.password_station, "Password");
   setConfigDefault_3 ();
+  setConfigRam ();
 }
 
-CS_CONFIG_t *getConfigFromEeprom () {
-  if (!EEPROM.begin (sizeof (CS_CONFIG_t)))
-  {
+CS_CONFIG_t *getConfig () {
+  if (fetched) return &cs_config;
+  if (!EEPROM.begin (sizeof (CS_CONFIG_t))) {
     Serial.println ("failed to initialise EEPROM for reading");
     setConfigDefault ();
+    setConfigRam ();
     return &cs_config;
   }
   if (EEPROM.readBytes (0, &cs_config, sizeof (CS_CONFIG_t)) != sizeof (CS_CONFIG_t) || cs_config.magicnumber != 0x0caacee0) {
     Serial.println ("Not a valid EEPROM record");
     setConfigToEeprom (true);
   }
-  if (cs_config.version != 3) {
+  // so here we have a valid cs_config
+  if (cs_config.version < 3) {
     Serial.println ("EEPROM structure changed");
     EEPROM.end ();
     setConfigDefault_3 ();
     setConfigToEeprom (false);
-    return &cs_config;
+/*
+  else if (cs_config.version < 4) {
+      Serial.println ("EEPROM structure changed");
+      EEPROM.end ();
+      setConfigDefault_4 ();
+      setConfigToEeprom (false);
+*/
+  } else {
+    EEPROM.end ();
   }
-  EEPROM.end ();
+  // Clear ram components
+  setConfigRam ();
   return &cs_config;
 }
 

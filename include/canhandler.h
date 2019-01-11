@@ -10,7 +10,7 @@
 #include "config.h"
 #include "utils.h"
 
-void can_init (CS_CONFIG_t *config);
+void can_init ();
 void can_send (CAN_frame_t *frame, uint8_t bus);
 boolean can_receive (CAN_frame_t *rx_frame);
 String canFrameToString(CAN_frame_t &frame);

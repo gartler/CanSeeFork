@@ -9,7 +9,7 @@
 
 // Repository included libraries includes, see ./lib/ ************************
 
-void bluetooth_init (CS_CONFIG_t *config, void (*p)());
+void bluetooth_init ();
 void writeOutgoingBluetooth (String o);
 void readIncomingBluetooth (String &readBuffer);
 

@@ -24,7 +24,8 @@ typedef struct {
   uint8_t flow_block = 0;                          // frames to send (until new flow control)
 } ISO_MESSAGE_t;
 
-void isotp_init (CS_CONFIG_t *config, void (*p)(String o));
+void isotp_init ();
+void isotp_ticker ();
 void storeIsotpframe (CAN_frame_t &frame, uint8_t bus);
 String isoMessageToString (ISO_MESSAGE_t &message);
 void can_send_flow (uint32_t requestId, uint8_t flow);
