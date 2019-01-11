@@ -29,6 +29,7 @@ xxx config
           04: show Commands issued
           08: show free frame Commands
           10: show ISO-TP Commands
+101 Get the flags
 200 Set the Bluetooth name (CANSee)
 201 Set the Bluetooth pin (1234, not implemented by the API!!)
 300 Set the WiFi ssid for Soft Access Point mode (CANSee)

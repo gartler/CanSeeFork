@@ -217,19 +217,19 @@ void processCommand () {
       if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:Injecting " + canFrameToString (frame));
       storeFrame (frame);
       // storeframe will output if free frame or ISO-TP Single
-      // writeOutgoing (String (command.id, HEX) + "\n");
+      // writeOutgoing (getHex (command.id) + "\n");
     }
     break;
 
     // filter (deprecated) ***************************************************
     case 'f':
-    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:Filter " + String (command.id, HEX));
-    writeOutgoing (String (command.id, HEX) + "\n");
+    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:Filter " + getHex (command.id));
+    writeOutgoing (getHex (command.id) + "\n");
     break;
 
     // config (see config.cpp) ***********************************************
     case 'n':
-    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:config " + String (command.id, HEX));
+    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:config " + getHex (command.id));
     switch (command.id) {
       case 0x100: // set mode flags
       cansee_config->mode_serial     = command.request [0];
@@ -239,7 +239,8 @@ void processCommand () {
       cansee_config->mode_debug      = command.request [4];
       break;
       case 0x101: // get mode flags
-      writeOutgoing (getHex (cansee_config->mode_serial) + getHex (cansee_config->mode_bluetooth) + getHex (cansee_config->mode_wifi) + getHex (cansee_config->mode_leds) + getHex (cansee_config->mode_debug) + "\n");
+      writeOutgoing (getHex (command.id) + "," + getHex (cansee_config->mode_serial) + getHex (cansee_config->mode_bluetooth) + getHex (cansee_config->mode_wifi) + getHex (cansee_config->mode_leds) + getHex (cansee_config->mode_debug) + "\n");
+      return;
       break;
       case 0x200:
       strncpy (cansee_config->name_bluetooth, command.line + 5, sizeof (cansee_config->name_bluetooth));
@@ -273,7 +274,7 @@ void processCommand () {
       break;
     }
     setConfigToEeprom (false);
-    writeOutgoing (String (command.id, HEX) + "\n");
+    writeOutgoing (getHex (command.id) + "\n");
     break;
 
     // reset *****************************************************************
