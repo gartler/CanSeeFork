@@ -1,6 +1,6 @@
 /*
 CanSee
-The firmware to the DIY, superfase, ESP32 based comapanion to CANZE dongle
+The firmware to the DIY, superfast, ESP32 based comapanion to CANZE dongle
 
 Copyright (C) 2019 - The CanZE Team
 http://canze.fisch.lu
