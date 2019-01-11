@@ -16,22 +16,18 @@
 // ISO-TP message ************************************************************
 typedef struct {
   uint32_t id = 0xffffffff;                        // the from-address of the responding device
-  uint32_t requestId = 0xffffffff;                 // the to-address of the device to send the request to
-  uint16_t length = 0;
-  uint8_t index = 0;
-  uint8_t next = 1;
-  uint8_t request[8];
-  uint8_t requestLength = 0;
-  // uint8_t reply[8];
-  // uint8_t replyLength = 0;
-  // uint8_t* data = 0;
-  uint8_t data[1024];
+  uint16_t length = 0;                             // size, max 4096
+  uint16_t index = 0;                              // pointer
+  uint8_t next = 1;                                // sequence of next frame
+  uint8_t data[4096];                              // max ISOTP multiframe message
+  unsigned long flow_delay = 0;                    // delay between outgoing isoMessageToString
+  uint8_t flow_block = 0;                          // frames to send (until new flow control)
 } ISO_MESSAGE_t;
 
 void isotp_init (CS_CONFIG_t *config, void (*p)(String o));
 void storeIsotpframe (CAN_frame_t &frame, uint8_t bus);
 String isoMessageToString (ISO_MESSAGE_t &message);
-void can_send_flow (uint16_t requestId, uint8_t flow);
+void can_send_flow (uint32_t requestId, uint8_t flow);
 void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus);
 String isoMessageToString (ISO_MESSAGE_t &message);
 
