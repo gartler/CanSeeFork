@@ -1,4 +1,5 @@
 #include "wifihandler.h"
+#include "leds.h"
 
 static CS_CONFIG_t *wifi_config;
 static boolean wiFiIsActive = false;
@@ -15,18 +16,20 @@ void wifi_init () {
 
   if (wifi_config->mode_wifi == WIFI_SOFTAP) {
     if (wifi_config->mode_debug) Serial.println("Wifi AP '" + String (wifi_config->ssid_ap) + "' started.");
-    WiFi.softAP (wifi_config->ssid_ap, wifi_config->password_ap);                    // init WiFi access point
-    wiFiIsActive = true;                             // no need to check for active network
+    WiFi.softAP (wifi_config->ssid_ap, wifi_config->password_ap);           // init WiFi access point
+    wiFiIsActive = true;                                                    // no need to check for active network
     if (wifi_config->mode_debug) {
       IPAddress IP = WiFi.softAPIP ();
       Serial.print ("AP IP address: ");
       Serial.println (IP);
     }
-    server.begin ();                                 // start the server
+    server.begin ();                                                        // start the server
   } else if (wifi_config->mode_wifi == WIFI_STATION) {
-    if (wifi_config->mode_debug) Serial.println("Wifi ST " + String (wifi_config->ssid_station) + " starting ...");
-    WiFi.begin(wifi_config->ssid_station, wifi_config->password_station);                      // init WiFi station. Cheking is done in main loop
-    server.begin ();                                 // start the server
+    if (wifi_config->mode_debug) Serial.println("Wifi connecting to " + String (wifi_config->ssid_station) + " starting ...");
+    WiFi.begin(wifi_config->ssid_station, wifi_config->password_station);   // init WiFi station. Cheking is done in main loop
+    WiFi.mode(WIFI_STA);
+
+    server.begin();                                                         // start the server
   }
 }
 
@@ -53,6 +56,7 @@ void readIncomingWiFi (String &readBuffer) {
   // if in station mode, check if connected and set wiFiActive
   // if in softap modem wifi is always active
   if (wifi_config->mode_wifi == WIFI_STATION) {
+    led_set (LED_BLUE, WiFi.status() == WL_CONNECTED);
     if (WiFi.status() == WL_CONNECTED) {            // check if connected
       if (!wiFiIsActive) {
         if (wifi_config->mode_debug) {
@@ -68,6 +72,9 @@ void readIncomingWiFi (String &readBuffer) {
       }
     }
   } else if (wifi_config->mode_wifi == WIFI_SOFTAP) {
+    // turn led on if there is a least one client
+    led_set (LED_BLUE, WiFi.softAPgetStationNum()!=0);
+
     wiFiIsActive = true;
   }
   if (!wiFiIsActive) return;
@@ -107,6 +114,7 @@ void readIncomingWiFi (String &readBuffer) {
   for (i = 0; i < MAX_SRV_CLIENTS; i++) {          // check clients for data
     if (serverClients[i] && serverClients[i].connected()) {
       while (serverClients[i].available()) {       // if there is data
+        led_set (LED_GREEN, true);
         char ch = serverClients[i].read();         // get it
         if (ch == '\n' || ch == '\r') {            // buffer / process it
           if (readBuffer != "") {
@@ -116,6 +124,7 @@ void readIncomingWiFi (String &readBuffer) {
         } else {
           readBuffer += ch;
         }
+        led_set (LED_GREEN, false);
       }
     } else {                                       // no client, or unconnected
       if (serverClients[i]) {                      // if there is a client (so unconnected)

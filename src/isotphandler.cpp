@@ -1,4 +1,5 @@
 #include "isotphandler.h"
+#include "leds.h"
 
 static CS_CONFIG_t *isotp_config;
 static ISO_MESSAGE_t isoMessageIncoming;           // declare an ISO-TP message
@@ -41,7 +42,9 @@ void isotp_ticker () {
     Serial.print ("> com:Sending ISOTP NEXT:");
     Serial.print (canFrameToString (frame));
   }
+  led_set (LED_GREEN, true);
   can_send (&frame, 0); // bus ogic needs to be added
+  led_set (LED_GREEN, false);
   //
   nextMicros = micros() + isoMessageOutgoing.flow_delay;
 
@@ -81,7 +84,9 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
       }
 
       // start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
+      led_set (LED_GREEN, true);
       can_send_flow (isoMessageOutgoing.id, bus);
+      led_set (LED_GREEN, false);
 
       uint16_t messageLength = (frame.data.u8[0] & 0x0f) << 8;// length = second nibble + second byte
       messageLength |= frame.data.u8[1];
@@ -149,7 +154,9 @@ void can_send_flow (uint32_t requestId, uint8_t bus) {
   flow.data.u8[5] = 0;                             // fill-up
   flow.data.u8[6] = 0;                             // fill-up
   flow.data.u8[7] = 0;                             // fill-up
+  led_set (LED_GREEN, true);
   can_send (&flow, bus);
+  led_set (LED_GREEN, false);
 }
 
 void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
@@ -195,7 +202,9 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
       Serial.print ("> com:Sending ISOTP SING request:");
       Serial.print (canFrameToString (frame));
     }
+    led_set (LED_GREEN, true);
     can_send (&frame, bus);
+    led_set (LED_GREEN, false);
     // --> any incoming frames with the given id will be handled by "storeFrame"
     // and send off if complete. But ensure the ticker doesn't do any flow_block
     // controle
@@ -213,7 +222,9 @@ void requestIsotp (uint32_t id, int16_t length, uint8_t *request, uint8_t bus) {
       Serial.print ("> com:Sending ISOTP FRST request:");
       Serial.print (canFrameToString (frame));
     }
+    led_set (LED_GREEN, true);
     can_send (&frame, bus);
+    led_set (LED_GREEN, false);
     // --> any incoming frames with the given id will be handled by "storeFrame" and send off if complete
   }
 }

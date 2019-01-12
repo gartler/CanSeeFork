@@ -134,15 +134,13 @@ void loop() {
 */
 
 void storeFrame (CAN_frame_t &frame) {
+  led_set (LED_GREEN, true);
   if (frame.MsgID < 0x700) {                      // free data is < 0x700
-    led_set (LED_YELLOW, true);
     storeFreeframe (frame, 0);
-    led_set (LED_YELLOW, false);
   } else if (frame.MsgID < 0x800) {                // iso-tp data is < 0x800
-    led_set (LED_WHITE, true);
     storeIsotpframe (frame, 0);
-    led_set (LED_WHITE, false);
   }
+  led_set (LED_GREEN, false);
 }
 
 // I/O functions *************************************************************
@@ -277,12 +275,18 @@ void processCommand () {
     writeOutgoing (getHex (command.id) + "\n");
     break;
 
-    // reset *****************************************************************
+    // reboot *****************************************************************
     case 'z':
     ESP.restart();
     break;
 
-    // give up ***************************************************************
+    // reset config & reboot **************************************************
+    case 'r':
+    setConfigToEeprom(true);
+    ESP.restart();
+    break;
+
+    // give up ****************************************************************
     default:
     if (cansee_config->mode_debug) Serial.println ("> com:Unknown command " + String (command.cmd));
     writeOutgoing("fff,\n");

@@ -29,15 +29,15 @@ void setConfigDefault () {
   cs_config.version                   = 1;         // change if length of config changes
   cs_config.mode_serial               = 1;
   cs_config.mode_bluetooth            = 1;
-  cs_config.mode_wifi                 = 0;         // WIFI_SOFTAP;
+  cs_config.mode_wifi                 = 0;         // WIFI_SOFTAP or WIFI_STATION;
   cs_config.mode_debug                = 0xf6;
-  cs_config.mode_leds                 = 0;
+  cs_config.mode_leds                 = 1;
   strcpy (cs_config.name_bluetooth,   "CANSee");
   strcpy (cs_config.pin_bluetooth,    "1234");     // not implemented in framework yet
   strcpy (cs_config.ssid_ap,          "CANSee");
   strcpy (cs_config.password_ap,      "CANSeeMe");
   strcpy (cs_config.ssid_station,     "Home");
-  strcpy (cs_config.password_station, "Password");
+  strcpy (cs_config.password_station, "Username");
   setConfigDefault_3 ();
   setConfigRam ();
 }

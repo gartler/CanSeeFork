@@ -1,4 +1,5 @@
 #include "bluetoothhandler.h"
+#include "leds.h"
 
 static CS_CONFIG_t *bluetooth_config;
 static BluetoothSerial SerialBT;

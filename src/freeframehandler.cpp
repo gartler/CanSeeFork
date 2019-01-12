@@ -1,4 +1,5 @@
 #include "freeframehandler.h"
+#include "leds.h"
 
 static CS_CONFIG_t *freeframe_config;
 static FREEFRAME_t freeframes[FREEFRAMEARRAYSIZE];
