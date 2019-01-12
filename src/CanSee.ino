@@ -72,6 +72,12 @@ typedef struct {
 // command read buffer *******************************************************
 String readBuffer = "";
 
+//* counters *****************************************************************
+uint32_t canFrameCounter = 1;
+uint32_t lastCanFrameCounter = 0;
+uint32_t cnt5000 = 0;
+uint32_t cnt100 = 0;
+
 // ***************************************************************************
 void setup() {
   Serial.begin (SERIAL_BPS);                         // init serial
@@ -114,19 +120,45 @@ void setup() {
 
 // ***************************************************************************
 void loop() {
-  // 1. receive next CAN frame from queue
-  CAN_frame_t rx_frame;
+  tickerFast ();
+}
+
+void tickerFast () {
+  uint32_t nowMicros = micros ();
+  static uint32_t lastMicro = nowMicros;           // static so should only be initalized once
+
+  // do Fast
+  CAN_frame_t rx_frame;                            // 1. receive next CAN frame from queue
   if (can_receive (&rx_frame)) {
     storeFrame (rx_frame);
+    canFrameCounter++;
   }
+  readIncoming ();                                 // 2. proceed with input (serial & BT)
+  // isotp_ticker ();
+  // end do Fast
 
-  // 2. proceed with input (serial & BT)
-  readIncoming ();
-  //isotp_ticker ();
+  if ((nowMmicros - lastMicros) > 100000L) { // 110 ms passed?
+    ticker100ms ();
+    lastMicros = nowMicros;
+  }
+}
 
-  // 3. age data array of free frames
-  // to do
+void ticker100ms () {
+  static int tick = 0;
 
+  // do every 100ms
+  // Things like button pushed should go here
+  // end do every 100 ms
+
+  if (tick++ == 50) {
+    ticker5000ms ();
+    tick = 0;
+}
+
+void ticker5000ms () {
+  // do every 5000ms
+  setActiveBluetooth (canFrameCounter != lastCanFrameCounter);
+  // end do every 5000 ms
 }
 
 /*****************************************************************************
