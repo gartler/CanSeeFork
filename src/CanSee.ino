@@ -125,7 +125,7 @@ void loop() {
 
 void tickerFast () {
   uint32_t nowMicros = micros ();
-  static uint32_t lastMicro = nowMicros;           // static so should only be initalized once
+  static uint32_t lastMicros = nowMicros;           // static so should only be initalized once
 
   // do Fast
   CAN_frame_t rx_frame;                            // 1. receive next CAN frame from queue
@@ -137,7 +137,7 @@ void tickerFast () {
   // isotp_ticker ();
   // end do Fast
 
-  if ((nowMmicros - lastMicros) > 100000L) { // 110 ms passed?
+  if ((nowMicros - lastMicros) > 100000L) { // 110 ms passed?
     ticker100ms ();
     lastMicros = nowMicros;
   }
@@ -153,6 +153,7 @@ void ticker100ms () {
   if (tick++ == 50) {
     ticker5000ms ();
     tick = 0;
+  }
 }
 
 void ticker5000ms () {
