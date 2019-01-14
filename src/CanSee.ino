@@ -134,7 +134,7 @@ void tickerFast () {
     canFrameCounter++;
   }
   readIncoming ();                                 // 2. proceed with input (serial & BT)
-  // isotp_ticker ();
+  isotp_ticker ();
   // end do Fast
 
   if ((nowMicros - lastMicros) > 100000L) { // 110 ms passed?

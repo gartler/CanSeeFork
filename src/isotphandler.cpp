@@ -130,6 +130,9 @@ void storeIsotpframe (CAN_frame_t &frame, uint8_t bus) {
       //uint8_t flag = isoMessageIncoming.data[0] &0x0f;
       isoMessageOutgoing.flow_block = frame.data.u8[1];
       isoMessageOutgoing.flow_delay = frame.data.u8[2] <= 127 ? frame.data.u8[2] * 1000 : frame.data.u8[2] - 0xf0;
+      // to avoid overwhelming the outgoing queue, set minimum to 5 ms
+      // this is experimental
+      if (isoMessageOutgoing.flow_delay < 5) = isoMessageOutgoing.flow_delay = 5;
 
     } else {
       if (isotp_config->mode_debug) Serial.println("< can:ISO ignoring unknown frame type:" + String (type));
