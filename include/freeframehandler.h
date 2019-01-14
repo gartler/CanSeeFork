@@ -20,6 +20,7 @@ typedef struct {
 
 void freeframe_init ();
 void storeFreeframe (CAN_frame_t &frame, uint8_t bus);
+void ageFreeFrame ();
 FREEFRAME_t *getFreeframe (uint32_t id, uint8_t bus);
 void requestFreeframe  (uint32_t id, uint8_t bus);
 String bufferedFrameToString (uint32_t id, uint8_t bus);

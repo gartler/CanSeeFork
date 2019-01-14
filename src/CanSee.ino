@@ -159,6 +159,7 @@ void ticker100ms () {
 void ticker5000ms () {
   // do every 5000ms
   setActiveBluetooth (canFrameCounter != lastCanFrameCounter);
+  ageFreeFrame ();
   // end do every 5000 ms
 }
 
