@@ -38,10 +38,17 @@ void isotp_ticker () {
     Serial.print (canFrameToString (frame));
   }
 
-  if (isoMessageOutgoing.length == isoMessageOutgoing.index) {// done, reset
+  if (isoMessageOutgoing.length == isoMessageOutgoing.index) {
+    // Done sending the outgoing message, so reset it and cancel further
+    // handling by this ticker
     isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
     isoMessageOutgoing.flow_active = 0;
-    isoMessageIncoming.id = 0xffff;              // cancel this message so nothing will be added intil it is re-initialized
+
+    // At this moment, further sending by the ticker will stop. A few clow control
+    // should not come in, but we now expect the answer, so do not invalidate the
+    // incoming id
+    // isoMessageIncoming.id = 0xffff;
+    // the incoming message is full initiaized (id, index)
   }
 
   if (isoMessageOutgoing.flow_counter != 0) {
