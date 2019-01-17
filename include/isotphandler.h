@@ -21,7 +21,8 @@ typedef struct {
   uint8_t next = 1;                                // sequence of next frame
   uint8_t data[4096];                              // max ISOTP multiframe message
   unsigned long flow_delay = 0;                    // delay between outgoing isoMessageToString
-  uint8_t flow_block = 0;                          // frames to send (until new flow control)
+  uint8_t flow_counter = 0;                        // frames to send (until new flow control)
+  uint8_t flow_active = 0;                         // 0=no, 1=yes
 } ISO_MESSAGE_t;
 
 void isotp_init ();

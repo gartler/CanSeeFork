@@ -362,7 +362,7 @@ COMMAND_t decodeCommand (String &input) {
       if (ch != ',') request += ch;
       input.remove(0, 1);
     } while (input.length() != 0 && ch != ',');
-    for (int i = 0; i < request.length() && result.requestLength < 8; i += 2) {// check for overflow
+    for (int i = 0; i < request.length() && result.requestLength < 32; i += 2) {// check for overflow
       result.request[result.requestLength] = hexToDec(request.substring(i, i + 2));
       result.requestLength++;
     }
@@ -376,7 +376,7 @@ COMMAND_t decodeCommand (String &input) {
       if (ch != ',') reply += ch;
       input.remove(0, 1);
     } while (input.length() != 0 && ch != ',');
-    for (int i = 0; i < reply.length() && result.replyLength < 8; i += 2) { // check for overflow
+    for (int i = 0; i < reply.length() && result.replyLength < 32; i += 2) { // check for overflow
       result.reply[result.replyLength] = hexToDec(reply.substring(i, i + 2));
       result.replyLength++;
     }
