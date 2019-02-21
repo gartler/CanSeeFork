@@ -5,12 +5,12 @@
 
 #include "config.h"
 
-#define LED_WHITE 26    // ISO-TP frame incoming
-#define LED_YELLOW 27   // free fame incoming
-#define LED_RED 32      // power
-#define LED_GREEN 33    // serial incoming request
-#define LED_BLUE 25     // bluetooth connected
-#define LED_ON LOW      // active LOW
+#define LED_BLUE   25   // BT connected, connected to WiFi, client has connected
+#define LED_GREEN  33   // CAN traffic, either sending or receiving
+#define LED_RED    32   // power indicator
+#define LED_YELLOW 27   // reserved for future use (maybe: off = BT mode, on = WiFi Client, blink = WiFi AP)
+#define LED_WHITE  26   // reserved for future use
+#define LED_ON LOW      // old:active LOW
 #define LED_OFF HIGH
 
 void leds_init ();

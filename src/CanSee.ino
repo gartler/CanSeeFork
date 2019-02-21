@@ -1,6 +1,6 @@
 /*
 CanSee
-The firmware to the DIY, superfase, ESP32 based comapanion to CANZE dongle
+The firmware to the DIY, superfast, ESP32 based comapanion to CANZE dongle
 
 Copyright (C) 2019 - The CanZE Team
 http://canze.fisch.lu
@@ -72,6 +72,12 @@ typedef struct {
 // command read buffer *******************************************************
 String readBuffer = "";
 
+//* counters *****************************************************************
+uint32_t canFrameCounter = 1;
+uint32_t lastCanFrameCounter = 0;
+uint32_t cnt5000 = 0;
+uint32_t cnt100 = 0;
+
 // ***************************************************************************
 void setup() {
   Serial.begin (SERIAL_BPS);                         // init serial
@@ -114,19 +120,47 @@ void setup() {
 
 // ***************************************************************************
 void loop() {
-  // 1. receive next CAN frame from queue
-  CAN_frame_t rx_frame;
+  tickerFast ();
+}
+
+void tickerFast () {
+  uint32_t nowMicros = micros ();
+  static uint32_t lastMicros = nowMicros;           // static so should only be initalized once
+
+  // do Fast
+  CAN_frame_t rx_frame;                            // 1. receive next CAN frame from queue
   if (can_receive (&rx_frame)) {
     storeFrame (rx_frame);
+    canFrameCounter++;
   }
+  readIncoming ();                                 // 2. proceed with input (serial & BT)
+  isotp_ticker ();
+  // end do Fast
 
-  // 2. proceed with input (serial & BT)
-  readIncoming ();
-  //isotp_ticker ();
+  if ((nowMicros - lastMicros) > 100000L) { // 110 ms passed?
+    ticker100ms ();
+    lastMicros = nowMicros;
+  }
+}
 
-  // 3. age data array of free frames
-  // to do
+void ticker100ms () {
+  static int tick = 0;
 
+  // do every 100ms
+  // Things like button pushed should go here
+  // end do every 100 ms
+
+  if (tick++ == 50) {
+    ticker5000ms ();
+    tick = 0;
+  }
+}
+
+void ticker5000ms () {
+  // do every 5000ms
+  setActiveBluetooth (canFrameCounter != lastCanFrameCounter);
+  ageFreeFrame ();
+  // end do every 5000 ms
 }
 
 /*****************************************************************************
@@ -134,15 +168,13 @@ void loop() {
 */
 
 void storeFrame (CAN_frame_t &frame) {
+  led_set (LED_GREEN, true);
   if (frame.MsgID < 0x700) {                      // free data is < 0x700
-    led_set (LED_YELLOW, true);
     storeFreeframe (frame, 0);
-    led_set (LED_YELLOW, false);
   } else if (frame.MsgID < 0x800) {                // iso-tp data is < 0x800
-    led_set (LED_WHITE, true);
     storeIsotpframe (frame, 0);
-    led_set (LED_WHITE, false);
   }
+  led_set (LED_GREEN, false);
 }
 
 // I/O functions *************************************************************
@@ -217,19 +249,19 @@ void processCommand () {
       if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.print ("> com:Injecting " + canFrameToString (frame));
       storeFrame (frame);
       // storeframe will output if free frame or ISO-TP Single
-      // writeOutgoing (String (command.id, HEX) + "\n");
+      // writeOutgoing (getHex (command.id) + "\n");
     }
     break;
 
     // filter (deprecated) ***************************************************
     case 'f':
-    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:Filter " + String (command.id, HEX));
-    writeOutgoing (String (command.id, HEX) + "\n");
+    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:Filter " + getHex (command.id));
+    writeOutgoing (getHex (command.id) + "\n");
     break;
 
     // config (see config.cpp) ***********************************************
     case 'n':
-    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:config " + String (command.id, HEX));
+    if (cansee_config->mode_debug & DEBUG_COMMAND) Serial.println ("> com:config " + getHex (command.id));
     switch (command.id) {
       case 0x100: // set mode flags
       cansee_config->mode_serial     = command.request [0];
@@ -239,7 +271,8 @@ void processCommand () {
       cansee_config->mode_debug      = command.request [4];
       break;
       case 0x101: // get mode flags
-      writeOutgoing (getHex (cansee_config->mode_serial) + getHex (cansee_config->mode_bluetooth) + getHex (cansee_config->mode_wifi) + getHex (cansee_config->mode_leds) + getHex (cansee_config->mode_debug) + "\n");
+      writeOutgoing (getHex (command.id) + "," + getHex (cansee_config->mode_serial) + getHex (cansee_config->mode_bluetooth) + getHex (cansee_config->mode_wifi) + getHex (cansee_config->mode_leds) + getHex (cansee_config->mode_debug) + "\n");
+      return;
       break;
       case 0x200:
       strncpy (cansee_config->name_bluetooth, command.line + 5, sizeof (cansee_config->name_bluetooth));
@@ -273,15 +306,21 @@ void processCommand () {
       break;
     }
     setConfigToEeprom (false);
-    writeOutgoing (String (command.id, HEX) + "\n");
+    writeOutgoing (getHex (command.id) + "\n");
     break;
 
-    // reset *****************************************************************
+    // reboot *****************************************************************
     case 'z':
     ESP.restart();
     break;
 
-    // give up ***************************************************************
+    // reset config & reboot **************************************************
+    case 'r':
+    setConfigToEeprom(true);
+    ESP.restart();
+    break;
+
+    // give up ****************************************************************
     default:
     if (cansee_config->mode_debug) Serial.println ("> com:Unknown command " + String (command.cmd));
     writeOutgoing("fff,\n");
@@ -323,7 +362,7 @@ COMMAND_t decodeCommand (String &input) {
       if (ch != ',') request += ch;
       input.remove(0, 1);
     } while (input.length() != 0 && ch != ',');
-    for (int i = 0; i < request.length() && result.requestLength < 8; i += 2) {// check for overflow
+    for (int i = 0; i < request.length() && result.requestLength < 32; i += 2) {// check for overflow
       result.request[result.requestLength] = hexToDec(request.substring(i, i + 2));
       result.requestLength++;
     }
@@ -337,7 +376,7 @@ COMMAND_t decodeCommand (String &input) {
       if (ch != ',') reply += ch;
       input.remove(0, 1);
     } while (input.length() != 0 && ch != ',');
-    for (int i = 0; i < reply.length() && result.replyLength < 8; i += 2) { // check for overflow
+    for (int i = 0; i < reply.length() && result.replyLength < 32; i += 2) { // check for overflow
       result.reply[result.replyLength] = hexToDec(reply.substring(i, i + 2));
       result.replyLength++;
     }

@@ -12,5 +12,6 @@
 void bluetooth_init ();
 void writeOutgoingBluetooth (String o);
 void readIncomingBluetooth (String &readBuffer);
+void setActiveBluetooth (bool active);
 
 #endif
