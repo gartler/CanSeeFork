@@ -139,7 +139,8 @@ void tickerFast () {
 
   if ((nowMicros - lastMicros) > 100000L) { // 110 ms passed?
     ticker100ms ();
-    lastMicros = nowMicros;
+    //lastMicros = nowMicros;
+    lastMicros += 100000L;
   }
 }
 
