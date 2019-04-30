@@ -13,6 +13,9 @@
 #define LED_ON LOW      // old:active LOW
 #define LED_OFF HIGH
 
+#define LED_SINGLE_ON HIGH
+#define LED_SINGLE_OFF LOW
+
 void leds_init ();
 void led_set (unsigned led, bool on);
 

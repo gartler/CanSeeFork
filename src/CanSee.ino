@@ -151,7 +151,21 @@ void ticker100ms () {
   // Things like button pushed should go here
   // end do every 100 ms
 
-  if (tick++ == 50) {
+  if (++tick == 10) {
+    ticker1000ms ();
+    tick = 0;
+  }
+}
+
+void ticker1000ms () {
+  static int tick = 0;
+
+  // do every 1000ms
+  static bool powerToggle = false;
+  led_set(LED_RED, (powerToggle = !powerToggle));
+  // end do every 1000 ms
+
+  if (++tick == 5) {
     ticker5000ms ();
     tick = 0;
   }

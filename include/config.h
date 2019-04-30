@@ -11,6 +11,9 @@
 #define DEBUG_BUS_RECEIVE_FF  0x01
 #define DEBUG_COMMAND_ISO     0x10
 
+#define LED_SINGLE            1
+#define LED_MULTI             2 // actually, anything but 0 and 1, but 2 is defined
+
 // Config ********************************************************************
 // structure that defines the firmware's configuration
 typedef struct {

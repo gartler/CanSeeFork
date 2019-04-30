@@ -21,7 +21,7 @@ xxx config
         00 for off, 01 for Station mode, 02 for Soft Access Point mode
         For station mode a DHCP server is assumed
       ll: Use leds
-        00 for off, ff for on
+        00 for off, 01 for single, ff for on
       dd: Debug
         00 for off, ff for on. A bit pattern can be used and added
           01: show CANbus receive free CAN_frame_std
