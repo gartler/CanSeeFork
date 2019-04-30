@@ -8,11 +8,7 @@ void leds_init () {
      return;
   } else if (leds_config->mode_leds == LED_SINGLE) {
     pinMode(LED_BUILTIN, OUTPUT);
-<<<<<<< HEAD
     led_set(LED_BUILTIN, true); delay(200); led_set(LED_BUILTIN, false);
-=======
-    led_set(LED_BUILTIN , false);
->>>>>>> 2b2e50bf3256b4ae9641742e447d4e90d36c98a7
   } else {
     // setup LED's
     pinMode(LED_WHITE , OUTPUT);
@@ -43,7 +39,6 @@ void leds_init () {
 }
 
 void led_set (unsigned led, bool on) {
-<<<<<<< HEAD
   static bool singleLedState = false;
   static bool blueState = false;
   if (leds_config->mode_leds == 0) {
@@ -76,23 +71,5 @@ void led_set (unsigned led, bool on) {
       // on of for others
       digitalWrite(led, on ? LED_ON : LED_OFF);
     }
-=======
-  if (leds_config->mode_leds == 0) {
-    return;
-  } else if (leds_config->mode_leds == LED_SINGLE) {
-    digitalWrite(LED_BUILTIN, on ? LED_SING_ON : LED_SINGLE_OFF);
-  } else {
-    if ((led == LED_BLUE) || (led == LED_RED)) {
-      if (on) {
-        ledcAttachPin(led, 0);
-      } else {
-        pinMatrixOutDetach(led, false, false);
-        // this method is not yet in the actual build!
-        //ledcDetachPin(LED_BLUE);
-      }
-    } else {
-      digitalWrite(led, on ? LED_ON : LED_OFF);
-    }
->>>>>>> 2b2e50bf3256b4ae9641742e447d4e90d36c98a7
   }
 }
