@@ -6,7 +6,7 @@ String getHexSimple(uint8_t num) {
   return stringOne;
 }
 
-String getHex(uint8_t num) {
+String getHex(uint32_t num) {
   String stringOne =  String(num, HEX);
   if (stringOne.length() < 2) stringOne = "0" + stringOne;
   return stringOne;

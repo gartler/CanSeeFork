@@ -87,11 +87,11 @@ void setup() {
 
   delay (500);                                     // give user chance to press BUT
   pinMode (0, INPUT);
+  cansee_config = getConfig ();                    // invalid config will reset too
   if (!digitalRead (0)) {                          // if pressed
     Serial.println("Reset config...");
     setConfigToEeprom (true);
   }
-  cansee_config = getConfig ();                    // invalid config will reset too
   cansee_config->output_handler = writeOutgoing;
   cansee_config->command_handler = processCommand;
 
@@ -104,7 +104,10 @@ void setup() {
     Serial.println ("Debug:     " + getHex (cansee_config->mode_debug    ));
     Serial.println ("CANbus0:   " + getHex (cansee_config->can0_speed / 25) + getHex (cansee_config->can0_rx) + getHex (cansee_config->can0_tx));
     Serial.println ("CANbus1*   " + getHex (cansee_config->can1_speed / 25) + getHex (cansee_config->can1_rx) + getHex (cansee_config->can1_tx));
+    Serial.println ("Boot count:" + getHex (cansee_config->boot_count    ));
   }
+  cansee_config->boot_count++;
+  setConfigToEeprom (false);
 
   leds_init ();
 

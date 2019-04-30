@@ -40,6 +40,7 @@ typedef struct {
   uint8_t bus;
   void (*command_handler)();                       // command handler
   void (*output_handler)(String o);                // output handler
+  uint16_t boot_count;
 } CS_CONFIG_t;
 
 CS_CONFIG_t *getConfig ();
