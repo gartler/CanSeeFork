@@ -331,6 +331,9 @@ void processCommand()
       writeOutgoing(getHex(command.id) + "," + getHex(cansee_config->mode_serial) + getHex(cansee_config->mode_bluetooth) + getHex(cansee_config->mode_wifi) + getHex(cansee_config->mode_leds) + getHex(cansee_config->mode_debug) + "\n");
       return;
       break;
+    case 0x110: // set only serial flag
+      cansee_config->mode_serial = command.request[0];
+      break;
     case 0x114: // set only debug flags
       cansee_config->mode_debug = command.request[0];
       break;
