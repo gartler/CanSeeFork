@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "002"
+#define VERSION "003"
 
 #define SERIAL_BPS 115200
 
@@ -331,6 +331,9 @@ void processCommand()
       writeOutgoing(getHex(command.id) + "," + getHex(cansee_config->mode_serial) + getHex(cansee_config->mode_bluetooth) + getHex(cansee_config->mode_wifi) + getHex(cansee_config->mode_leds) + getHex(cansee_config->mode_debug) + "\n");
       return;
       break;
+    case 0x114: // set only debug flags
+      cansee_config->mode_debug = command.request[0];
+      break;
     case 0x200:
       strncpy(cansee_config->name_bluetooth, command.line + 5, sizeof(cansee_config->name_bluetooth));
       break;
@@ -345,9 +348,6 @@ void processCommand()
       break;
     case 0x400:
       strncpy(cansee_config->ssid_station, command.line + 5, sizeof(cansee_config->ssid_station));
-      Serial.println(sizeof(cansee_config->ssid_station));
-      Serial.println(command.line);
-      Serial.println(cansee_config->ssid_station);
       break;
     case 0x401:
       strncpy(cansee_config->password_station, command.line + 5, sizeof(cansee_config->password_station));
@@ -356,6 +356,7 @@ void processCommand()
       cansee_config->can0_speed = command.request[0] * 25;
       cansee_config->can0_rx = command.request[1];
       cansee_config->can0_tx = command.request[2];
+      break;
     case 0x501: // can1
       cansee_config->can1_speed = command.request[0] * 25;
       cansee_config->can1_rx = command.request[1];
