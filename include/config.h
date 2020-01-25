@@ -11,6 +11,9 @@
 #define DEBUG_BUS_RECEIVE_FF  0x01
 #define DEBUG_COMMAND_ISO     0x10
 
+#define LED_SINGLE            1
+#define LED_MULTI             2 // actually, anything but 0 and 1, but 2 is defined
+
 // Config ********************************************************************
 // structure that defines the firmware's configuration
 typedef struct {
@@ -37,6 +40,7 @@ typedef struct {
   uint8_t bus;
   void (*command_handler)();                       // command handler
   void (*output_handler)(String o);                // output handler
+  uint16_t boot_count;
 } CS_CONFIG_t;
 
 CS_CONFIG_t *getConfig ();
