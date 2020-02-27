@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "003"
+#define VERSION "004"
 
 #define SERIAL_BPS 115200
 
@@ -205,7 +205,7 @@ void storeFrame(CAN_frame_t &frame)
   { // free data is < 0x700
     storeFreeframe(frame, 0);
   }
-  else if (frame.MsgID < 0x800)
+  else
   { // iso-tp data is < 0x800
     storeIsotpframe(frame, 0);
   }
@@ -279,7 +279,7 @@ void processCommand()
 
   // request an ISO-TP frame ***********************************************
   case 'i':
-    if (command.id >= 0x700 && command.id <= 0x7ff)
+    if (command.id >= 0x700)
     {
       requestIsotp(command.id, command.requestLength, command.request, bus);
     }
