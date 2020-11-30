@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "003"
+#define VERSION "004"
 
 #define SERIAL_BPS 115200
 
@@ -205,7 +205,7 @@ void storeFrame(CAN_frame_t &frame)
   { // free data is < 0x700
     storeFreeframe(frame, 0);
   }
-  else if (frame.MsgID < 0x800)
+  else
   { // iso-tp data is < 0x800
     storeIsotpframe(frame, 0);
   }
@@ -279,7 +279,7 @@ void processCommand()
 
   // request an ISO-TP frame ***********************************************
   case 'i':
-    if (command.id >= 0x700 && command.id <= 0x7ff)
+    if (command.id >= 0x700)
     {
       requestIsotp(command.id, command.requestLength, command.request, bus);
     }
@@ -330,6 +330,9 @@ void processCommand()
     case 0x101: // get mode flags
       writeOutgoing(getHex(command.id) + "," + getHex(cansee_config->mode_serial) + getHex(cansee_config->mode_bluetooth) + getHex(cansee_config->mode_wifi) + getHex(cansee_config->mode_leds) + getHex(cansee_config->mode_debug) + "\n");
       return;
+      break;
+    case 0x110: // set only serial flag
+      cansee_config->mode_serial = command.request[0];
       break;
     case 0x114: // set only debug flags
       cansee_config->mode_debug = command.request[0];
