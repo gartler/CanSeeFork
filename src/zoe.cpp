@@ -64,8 +64,8 @@ uint32_t getRequestId(uint32_t responseId)
     return 0x70c; // IDM
   else if (responseId == 0x18daf1df)
     return 0x18dadff1; // INV-ME
-  else if (responseId == 0x18dadef1)
-    return 0x18daf1de; // BCB 29 bits
+  else if (responseId == 0x18daf1de)
+    return 0x18dadef1; // BCB 29 bits
   else if (responseId == 0x7c8)
     return 0x7d8; // PLC-PLGW (Power Line connection, I assume CCS)
   else if (responseId == 0x735)
