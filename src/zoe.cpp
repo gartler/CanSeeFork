@@ -42,8 +42,8 @@ uint32_t getRequestId(uint32_t responseId)
   // new id's for ZE50
   else if (responseId == 0x775)
     return 0x755; // APB
-  else if (responseId == 0x7b9)
-    return 0x799; // AAU
+  else if (responseId == 0x7a2)
+    return 0x782; // AAU
   else if (responseId == 0x18daf1d2)
     return 0x18dad2f1; // SGS
   else if (responseId == 0x7b9)
