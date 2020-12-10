@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "006"
+#define VERSION "007"
 
 #define SERIAL_BPS 115200
 
