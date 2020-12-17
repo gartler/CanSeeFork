@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "007"
+#define VERSION "008"
 
 #define SERIAL_BPS 115200
 
@@ -85,7 +85,9 @@ void setup()
   Serial.begin(SERIAL_BPS); // init serial
   Serial.println("");
   Serial.println("");
-  Serial.println("CANSee starting...");
+  Serial.print("CANSee version ");
+  Serial.print(VERSION);
+  Serial.println(" starting...");
 
   delay(500); // give user chance to press BUT
   pinMode(0, INPUT);
