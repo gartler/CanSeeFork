@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "008"
+#define VERSION "009"
 
 #define SERIAL_BPS 115200
 
@@ -85,9 +85,7 @@ void setup()
   Serial.begin(SERIAL_BPS); // init serial
   Serial.println("");
   Serial.println("");
-  Serial.print("CANSee version ");
-  Serial.print(VERSION);
-  Serial.println(" starting...");
+  Serial.print("CANSee starting...");
 
   delay(500); // give user chance to press BUT
   pinMode(0, INPUT);
@@ -303,9 +301,7 @@ void processCommand()
       frame.data.u8[i] = command.request[i];
     if (cansee_config->mode_debug & DEBUG_COMMAND)
       Serial.print("> com:Injecting " + canFrameToString(frame));
-    storeFrame(frame);
-    // storeframe will output if free frame or ISO-TP Single
-    // writeOutgoing (getHex (command.id) + "\n");
+    can_send (&frame, 0);
   }
   break;
 

@@ -6,10 +6,11 @@
 #define WIFI_STATION 1
 #define WIFI_SOFTAP  2
 
-#define DEBUG_COMMAND_FF      0x08
-#define DEBUG_COMMAND         0x04
-#define DEBUG_BUS_RECEIVE_FF  0x01
-#define DEBUG_COMMAND_ISO     0x10
+#define DEBUG_COMMAND_FF      0x08 //     unused
+#define DEBUG_COMMAND         0x04 // (*) debug all command activity
+#define DEBUG_NOTUSED         0x02 // (*) unused
+#define DEBUG_BUS_RECEIVE_FF  0x01 //     debug all incoming freeframes
+#define DEBUG_COMMAND_ISO     0x10 // (*) debug all incoming and outgoing ISOTP-frames 
 
 #define LED_SINGLE            1
 #define LED_MULTI             2 // actually, anything but 0 and 1, but 2 is defined
