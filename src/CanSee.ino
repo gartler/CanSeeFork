@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "009"
+#define VERSION "010"
 
 #define SERIAL_BPS 115200
 
@@ -189,7 +189,9 @@ void ticker1000ms()
 void ticker5000ms()
 {
   // do every 5000ms
-  setActiveBluetooth(canFrameCounter != lastCanFrameCounter);
+  setActiveBluetooth(true);
+  // setActiveBluetooth(canFrameCounter != lastCanFrameCounter);
+  lastCanFrameCounter = canFrameCounter;
   ageFreeFrame();
   // end do every 5000 ms
 }
@@ -301,7 +303,7 @@ void processCommand()
       frame.data.u8[i] = command.request[i];
     if (cansee_config->mode_debug & DEBUG_COMMAND)
       Serial.print("> com:Injecting " + canFrameToString(frame));
-    can_send (&frame, 0);
+    can_send(&frame, 0);
   }
   break;
 
