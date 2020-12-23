@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "010"
+#define VERSION "011"
 
 #define SERIAL_BPS 115200
 
@@ -193,6 +193,7 @@ void ticker5000ms()
   // setActiveBluetooth(canFrameCounter != lastCanFrameCounter);
   lastCanFrameCounter = canFrameCounter;
   ageFreeFrame();
+  bluetoothWatchdogTicker();
   // end do every 5000 ms
 }
 
