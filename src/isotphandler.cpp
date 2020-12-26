@@ -13,6 +13,8 @@ void isotp_init()
   isoMessageIncoming.length = isoMessageIncoming.index = isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
 }
 
+// the ticker is called in the main loop. It handles the sending of NEXT
+// frames asynchronously
 void isotp_ticker()
 {
   CAN_frame_t frame; // build the CAN frame
@@ -38,13 +40,14 @@ void isotp_ticker()
     frame.data.u8[i + 1] = 0;
   }
 
-  // send the frame
+  // debug
   if (isotp_config->mode_debug & DEBUG_COMMAND_ISO)
   {
     Serial.print("> com:Sending ISOTP NEXT:");
     Serial.print(canFrameToString(frame));
   }
 
+  // check if we reached the end of the message
   if (isoMessageOutgoing.length == isoMessageOutgoing.index)
   {
     // Done sending the outgoing message, so reset it and cancel further
@@ -52,7 +55,7 @@ void isotp_ticker()
     isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
     isoMessageOutgoing.flow_active = 0;
 
-    // At this moment, further sending by the ticker will stop. A few clow control
+    // At this moment, further sending by the ticker will stop. A new flow control
     // should not come in, but we now expect the answer, so do not invalidate the
     // incoming id
     // isoMessageIncoming.id = 0xffff;
@@ -67,13 +70,15 @@ void isotp_ticker()
     }
   }
 
+  // send the frame
   led_set(LED_GREEN, true);
-  can_send(&frame, 0); // bus ogic needs to be added
+  can_send(&frame, 0); // bus logic needs to be added
   led_set(LED_GREEN, false);
   //
   lastMicros = micros();
 }
 
+// process an incoming ISO-TP frame
 void storeIsotpframe(CAN_frame_t &frame, uint8_t bus)
 {
   // if there is content and this is the frame we are waiting for
@@ -171,9 +176,9 @@ void storeIsotpframe(CAN_frame_t &frame, uint8_t bus)
           Serial.println("< can:ISO Out of sequence, resetting");
         isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added intil it is re-initialized
       }
-
-      // incoming flow control ***********************************************
     }
+
+    // incoming flow control ***********************************************
     else if (type == 0x3)
     {
       //uint8_t flag = isoMessageIncoming.data[0] &0x0f;
@@ -186,6 +191,7 @@ void storeIsotpframe(CAN_frame_t &frame, uint8_t bus)
       isoMessageOutgoing.flow_active = 1;
       lastMicros = micros();
     }
+
     else
     {
       if (isotp_config->mode_debug)
@@ -199,6 +205,7 @@ void storeIsotpframe(CAN_frame_t &frame, uint8_t bus)
   }
 }
 
+// send a flow control frame
 void can_send_flow(uint32_t requestId, uint8_t bus)
 {
   CAN_frame_t flow;
@@ -219,6 +226,7 @@ void can_send_flow(uint32_t requestId, uint8_t bus)
   led_set(LED_GREEN, false);
 }
 
+// send an ISO-TP message
 void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 {
   CAN_frame_t frame; // build the CAN frame
@@ -259,6 +267,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 
   if (isoMessageOutgoing.length <= 7)
   { // send SING frame
+    // prepare the frame
     frame.data.u8[0] = (isoMessageOutgoing.length & 0x0f);
     for (int i = 0; i < isoMessageOutgoing.length; i++)
     { // fill up the other bytes with the request
@@ -268,34 +277,43 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
     {
       frame.data.u8[i + 1] = 0; // zero out frame
     }
-    // send the frame
+
+    // debug
     if (isotp_config->mode_debug & DEBUG_COMMAND_ISO)
     {
       Serial.print("> com:Sending ISOTP SING request:");
       Serial.print(canFrameToString(frame));
     }
+
+    // send the frame
     led_set(LED_GREEN, true);
     can_send(&frame, bus);
     led_set(LED_GREEN, false);
+
     // --> any incoming frames with the given id will be handled by "storeFrame"
     // and send off if complete. But ensure the ticker doesn't do any flow_block
-    // controle
+    // control
     isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
   }
+
   else
   { // send a FIRST frame
+    // prepare the firt frame
     frame.data.u8[0] = (uint8_t)(0x10 + ((length >> 8) & 0x0f));
     frame.data.u8[1] = (uint8_t)(length & 0xff);
     for (int i = 0; i < 6; i++)
-    { // fill up the other bytes with the request
+    { // fill up the other bytes with the first 6 bytes of the request
       frame.data.u8[i + 2] = isoMessageOutgoing.data[isoMessageOutgoing.index++];
     }
-    // send the frame
+
+    // debug
     if (isotp_config->mode_debug & DEBUG_COMMAND_ISO)
     {
       Serial.print("> com:Sending ISOTP FRST request:");
       Serial.print(canFrameToString(frame));
     }
+
+    // send the frame
     led_set(LED_GREEN, true);
     can_send(&frame, bus);
     led_set(LED_GREEN, false);
