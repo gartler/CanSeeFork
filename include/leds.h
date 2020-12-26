@@ -10,7 +10,8 @@
 #define LED_RED 32    // power indicator
 #define LED_YELLOW 27 // reserved for future use (maybe: off = BT mode, on = WiFi Client, blink = WiFi AP)
 #define LED_WHITE 26  // reserved for future use
-#define LED_ON HIGH   // Active HIGH
+
+#define LED_ON HIGH // Active HIGH
 #define LED_OFF LOW
 
 #define LED_SINGLE_ON HIGH

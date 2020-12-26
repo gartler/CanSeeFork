@@ -66,7 +66,7 @@ void led_set(unsigned led, bool on)
   }
   else if (leds_config->mode_leds == LED_SINGLE)
   {
-    // single LED compleely ignores absolute LED state, just switches
+    // single LED completely ignores absolute LED state, just switches
     // blue is a special case as it is continuously updated by connection state
     if (led == LED_BLUE)
     {

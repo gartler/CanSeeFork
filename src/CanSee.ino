@@ -115,12 +115,11 @@ void setup()
   cansee_config->boot_count++;
   setConfigToEeprom(false);
 
+  // call all initalization routines
   leds_init();
-
   serial_init();
   bluetooth_init();
   wifi_init();
-
   can_init();
   freeframe_init();
   isotp_init();
@@ -131,6 +130,8 @@ void setup()
 }
 
 // ***************************************************************************
+// The timer loops. This is a cascade from AFAP, 100 ms, 1000 ms and 5000ms
+// one can add relevant calls in eacht of these timers
 void loop()
 {
   tickerFast();
@@ -150,12 +151,12 @@ void tickerFast()
   }
   readIncoming(); // 2. proceed with input (serial & BT)
   isotp_ticker();
+
   // end do Fast
 
   if ((nowMicros - lastMicros) > 100000L)
-  { // 110 ms passed?
+  { // 100 ms passed?
     ticker100ms();
-    //lastMicros = nowMicros;
     lastMicros += 100000L;
   }
 }
@@ -166,6 +167,7 @@ void ticker100ms()
 
   // do every 100ms
   // Things like button pushed should go here
+
   // end do every 100 ms
 
   if (++tick == 10)
@@ -181,10 +183,10 @@ void ticker1000ms()
 
   // do every 1000ms
 
-  // toggle the RED LED
+  // toggle the Alive LED
   toggleAliveLed();
 
-  // kick the dog
+  // feed the dog
   esp_task_wdt_reset();
 
   // end do every 1000 ms
@@ -199,11 +201,14 @@ void ticker1000ms()
 void ticker5000ms()
 {
   // do every 5000ms
+
   setActiveBluetooth(true);
   // setActiveBluetooth(canFrameCounter != lastCanFrameCounter);
   lastCanFrameCounter = canFrameCounter;
+
   ageFreeFrame();
   bluetoothWatchdogTicker();
+
   // end do every 5000 ms
 }
 
