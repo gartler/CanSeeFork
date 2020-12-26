@@ -18,5 +18,6 @@
 
 void leds_init();
 void led_set(unsigned led, bool on);
+void toggleAliveLed();
 
 #endif

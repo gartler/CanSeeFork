@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#define VERSION "011"
+#define VERSION "012"
 
 #define SERIAL_BPS 115200
 
@@ -49,6 +49,7 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #include "freeframehandler.h"
 #include "isotphandler.h"
 #include "utils.h"
+#include <esp_task_wdt.h>
 
 // Tidy up defs **************************************************************
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -123,6 +124,10 @@ void setup()
   can_init();
   freeframe_init();
   isotp_init();
+
+  // setup watchdog
+  esp_task_wdt_init(2, true); // panic rebot if the dog hasn't been kicked in two seconds
+  esp_task_wdt_add(NULL);     // add this task to the watchdog
 }
 
 // ***************************************************************************
@@ -175,8 +180,13 @@ void ticker1000ms()
   static int tick = 0;
 
   // do every 1000ms
-  static bool powerToggle = false;
-  led_set(LED_RED, (powerToggle = !powerToggle));
+
+  // toggle the RED LED
+  toggleAliveLed();
+
+  // kick the dog
+  esp_task_wdt_reset();
+
   // end do every 1000 ms
 
   if (++tick == 5)
