@@ -257,7 +257,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
   frame.MsgID = isoMessageOutgoing.id; // set the ID
   frame.FIR.B.DLC = 8;                 //command.requestLength + 1;// set the length. Note some ECU's like DLC 8
 
-  if (isoMessageOutgoing.length <= 6)
+  if (isoMessageOutgoing.length <= 7)
   { // send SING frame
     frame.data.u8[0] = (isoMessageOutgoing.length & 0x0f);
     for (int i = 0; i < isoMessageOutgoing.length; i++)
