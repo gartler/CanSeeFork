@@ -5,11 +5,12 @@
 #include <WiFi.h>
 
 #include "config.h"
+#include "serialhandler.h"
 
 #define MAX_SRV_CLIENTS 1
 
-void wifi_init ();
-void writeOutgoingWiFi (String o);
-void readIncomingWiFi (String &readBuffer);
+void wifi_init();
+void writeOutgoingWiFi(String o);
+void readIncomingWiFi(String &readBuffer);
 
 #endif

@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "leds.h"
+#include "serialhandler.h"
 
 // Repository included libraries includes, see ./lib/ ************************
 

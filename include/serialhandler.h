@@ -5,8 +5,9 @@
 
 #include "config.h"
 
-void serial_init ();
-void writeOutgoingSerial (String o);
-void readIncomingSerial (String &readBuffer);
+void serial_init();
+void writeOutgoingSerial(String o);
+void writeOutgoingSerialDebug(String o);
+void readIncomingSerial(String &readBuffer);
 
 #endif

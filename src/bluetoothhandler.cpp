@@ -12,8 +12,8 @@ void bluetooth_init()
   bluetooth_active = bluetooth_config->mode_bluetooth;
   if (bluetooth_active)
   {
-    if (bluetooth_config->mode_debug)
-      Serial.println("Bluetooth '" + String(bluetooth_config->name_bluetooth) + "' started.");
+    if (bluetooth_config->mode_debug & DEBUG_COMMAND)
+      writeOutgoingSerialDebug("Bluetooth '" + String(bluetooth_config->name_bluetooth) + "' started.");
     SerialBT.begin(bluetooth_config->name_bluetooth); // init Bluetooth serial, no password in current framework
   }
 }

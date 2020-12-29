@@ -86,7 +86,9 @@ void setup()
   Serial.begin(SERIAL_BPS); // init serial
   Serial.println("");
   Serial.println("");
-  Serial.print("CANSee starting...");
+  Serial.print("CANSee version ");
+  Serial.print(VERSION);
+  Serial.println(" starting...");
 
   delay(500); // give user chance to press BUT
   pinMode(0, INPUT);
@@ -101,8 +103,6 @@ void setup()
 
   if (cansee_config->mode_debug)
   {
-    Serial.print("Version:   ");
-    Serial.println(VERSION);
     Serial.println("Serial:    " + getHex(cansee_config->mode_serial));
     Serial.println("Bluetooth: " + getHex(cansee_config->mode_bluetooth));
     Serial.println("WiFi:      " + getHex(cansee_config->mode_wifi));
@@ -252,7 +252,7 @@ void processCommand()
   uint8_t bus = 0;
 
   if (cansee_config->mode_debug & DEBUG_COMMAND)
-    Serial.println("< com:" + readBuffer);
+    writeOutgoingSerialDebug("< com:" + readBuffer);
   COMMAND_t command = decodeCommand(readBuffer); // watch out, passe dby reference, so eaten
 
   //bus = (command.id & 0x40000000) ? 1 : 0;
@@ -277,7 +277,7 @@ void processCommand()
       }
     }
     if (cansee_config->mode_debug & DEBUG_COMMAND)
-      Serial.println("> fcn:" + String(count));
+      writeOutgoingSerialDebug("> fcn:" + String(count));
   }
   break;
 
@@ -290,7 +290,7 @@ void processCommand()
     else
     {
       if (cansee_config->mode_debug & DEBUG_COMMAND)
-        Serial.print("> com:ID out of bounds (0 - 0x6ff)");
+        writeOutgoingSerialDebug("> com:ID out of bounds (0 - 0x6ff)");
       requestFreeframe(0, bus);
     }
     break;
@@ -304,7 +304,7 @@ void processCommand()
     else
     {
       if (cansee_config->mode_debug)
-        Serial.println("E:ID out of bounds (0x700 - 0x7ff)");
+        writeOutgoingSerialDebug("E:ID out of bounds (0x700 and up)");
       requestIsotp(0, 0, 0, 0);
     }
     break;
@@ -318,7 +318,7 @@ void processCommand()
     for (int i = 0; i < command.requestLength; i++)
       frame.data.u8[i] = command.request[i];
     if (cansee_config->mode_debug & DEBUG_COMMAND)
-      Serial.print("> com:Injecting " + canFrameToString(frame));
+      writeOutgoingSerialDebug("> com:Injecting " + canFrameToString(frame));
     can_send(&frame, 0);
   }
   break;
@@ -326,14 +326,14 @@ void processCommand()
   // filter (deprecated) ***************************************************
   case 'f':
     if (cansee_config->mode_debug & DEBUG_COMMAND)
-      Serial.println("> com:Filter " + getHex(command.id));
+      writeOutgoingSerialDebug("> com:Filter " + getHex(command.id));
     writeOutgoing(getHex(command.id) + "\n");
     break;
 
   // config (see config.cpp) ***********************************************
   case 'n':
     if (cansee_config->mode_debug & DEBUG_COMMAND)
-      Serial.println("> com:config " + getHex(command.id));
+      writeOutgoingSerialDebug("> com:config " + getHex(command.id));
     switch (command.id)
     {
     case 0x100: // set mode flags
@@ -399,8 +399,8 @@ void processCommand()
 
   // give up ****************************************************************
   default:
-    if (cansee_config->mode_debug)
-      Serial.println("> com:Unknown command " + String(command.cmd));
+    if (cansee_config->mode_debug & DEBUG_COMMAND)
+      writeOutgoingSerialDebug("> com:Unknown command " + String(command.cmd));
     writeOutgoing("fff,\n");
     break;
   }
