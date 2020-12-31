@@ -62,7 +62,7 @@ void readIncomingBluetooth(String &readBuffer)
     {
       if (bluetooth_active && bluetooth_config->command_handler)
         bluetooth_config->command_handler();
-      watchDogStatus = 1; // reset and start the watchdog
+      // watchDogStatus = 1; // reset and start the watchdog
       readBuffer = "";
     }
   }

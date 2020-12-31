@@ -12,9 +12,13 @@ void leds_init()
   else if (leds_config->mode_leds == LED_SINGLE)
   {
     pinMode(LED_BUILTIN, OUTPUT);
-    led_set(LED_BUILTIN, true);
-    delay(200);
-    led_set(LED_BUILTIN, false);
+    for (int i = 0; i < 3; i++)
+    {
+      led_set(LED_BUILTIN, true);
+      delay(200);
+      led_set(LED_BUILTIN, false);
+      delay(200);
+    }
   }
   else
   {
