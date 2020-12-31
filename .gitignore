@@ -6,4 +6,4 @@
 .vscode
 *.ino.cpp
 *.code-workspace
-
+.DS_Store
