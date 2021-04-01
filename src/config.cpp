@@ -13,10 +13,13 @@ void setConfigDefault_3 () {
   cs_config.can1_tx                   = GPIO_NUM_19;
   cs_config.can1_speed                = (uint16_t)CAN_SPEED_250KBPS;
 }
-/*
-void setConfigDefault_3 () {
+
+void setConfigDefault_4 (bool reset_boot_count) {
+  cs_config.version                   = 4;         // change if length of config changes
+  if (reset_boot_count)
+    cs_config.boot_count              = 0;
 }
-*/
+
 void setConfigRam () {
   cs_config.bus = 0;
   cs_config.command_handler = NULL;
@@ -39,6 +42,7 @@ void setConfigDefault () {
   strcpy (cs_config.ssid_station,     "Home");
   strcpy (cs_config.password_station, "Username");
   setConfigDefault_3 ();
+  setConfigDefault_4 (false);
   setConfigRam ();
 }
 
@@ -60,13 +64,11 @@ CS_CONFIG_t *getConfig () {
     EEPROM.end ();
     setConfigDefault_3 ();
     setConfigToEeprom (false);
-/*
-  else if (cs_config.version < 4) {
+  } else if (cs_config.version < 4) {
       Serial.println ("EEPROM structure changed");
       EEPROM.end ();
-      setConfigDefault_4 ();
+      setConfigDefault_4 (true);
       setConfigToEeprom (false);
-*/
   } else {
     EEPROM.end ();
   }

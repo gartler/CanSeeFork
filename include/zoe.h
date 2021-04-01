@@ -3,6 +3,6 @@
 
 #include <Arduino.h>
 
-uint16_t getRequestId(uint16_t responseId);
+uint32_t getRequestId(uint32_t responseId);
 
 #endif
