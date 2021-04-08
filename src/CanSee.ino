@@ -45,6 +45,7 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #include "leds.h"
 #include "serialhandler.h"
 #include "bluetoothhandler.h"
+#include "blehandler.h"
 #include "wifihandler.h"
 #include "freeframehandler.h"
 #include "isotphandler.h"
@@ -104,6 +105,7 @@ void setup()
     Serial.println(VERSION);
     Serial.println("Serial:    " + getHex(cansee_config->mode_serial));
     Serial.println("Bluetooth: " + getHex(cansee_config->mode_bluetooth));
+    Serial.println("BLE:       " + getHex(cansee_config->mode_ble));
     Serial.println("WiFi:      " + getHex(cansee_config->mode_wifi));
     Serial.println("Leds:      " + getHex(cansee_config->mode_leds));
     Serial.println("Debug:     " + getHex(cansee_config->mode_debug));
@@ -118,6 +120,7 @@ void setup()
 
   serial_init();
   bluetooth_init();
+  ble_init();
   wifi_init();
 
   can_init();
@@ -220,6 +223,7 @@ void writeOutgoing(String o)
 {
   writeOutgoingSerial(o);
   writeOutgoingBluetooth(o);
+  writeOutgoingBle(o);
   writeOutgoingWiFi(o);
 }
 
@@ -227,6 +231,7 @@ void readIncoming()
 {
   readIncomingSerial(readBuffer);
   readIncomingBluetooth(readBuffer);
+  readIncomingBle(readBuffer);
   readIncomingWiFi(readBuffer);
 }
 
@@ -323,9 +328,10 @@ void processCommand()
     case 0x100: // set mode flags
       cansee_config->mode_serial = command.request[0];
       cansee_config->mode_bluetooth = command.request[1];
-      cansee_config->mode_wifi = command.request[2];
-      cansee_config->mode_leds = command.request[3];
-      cansee_config->mode_debug = command.request[4];
+      cansee_config->mode_ble = command.request[2];
+      cansee_config->mode_wifi = command.request[3];
+      cansee_config->mode_leds = command.request[4];
+      cansee_config->mode_debug = command.request[5];
       break;
     case 0x101: // get mode flags
       writeOutgoing(getHex(command.id) + "," + getHex(cansee_config->mode_serial) + getHex(cansee_config->mode_bluetooth) + getHex(cansee_config->mode_wifi) + getHex(cansee_config->mode_leds) + getHex(cansee_config->mode_debug) + "\n");
@@ -364,6 +370,9 @@ void processCommand()
       cansee_config->can1_speed = command.request[0] * 25;
       cansee_config->can1_rx = command.request[1];
       cansee_config->can1_tx = command.request[2];
+      break;
+    case 0x600:
+      strncpy(cansee_config->name_ble, command.line + 5, sizeof(cansee_config->name_ble));
       break;
     }
     setConfigToEeprom(false);

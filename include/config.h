@@ -22,10 +22,12 @@ typedef struct {
   byte version;
   byte mode_serial;
   byte mode_bluetooth;
+  byte mode_ble;
   byte mode_wifi;
   byte mode_debug;
   byte mode_leds;
   char name_bluetooth [32];
+  char name_ble [32];
   char pin_bluetooth [8];
   char ssid_ap [32];
   char password_ap [16];
