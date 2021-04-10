@@ -19,5 +19,6 @@
 void ble_init ();
 void writeOutgoingBle (String o);
 void readIncomingBle (String &readBuffer);
+void checkStateBle ();
 
 #endif

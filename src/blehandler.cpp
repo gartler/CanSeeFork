@@ -3,48 +3,50 @@
 
 static CS_CONFIG_t *ble_config;
 BLEServer *pServer = NULL;
-BLECharacteristic * pTxCharacteristic;
+BLECharacteristic *pTxCharacteristic;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
+bool bufferAvailable = false;
 String bleReadBuffer = "";
 
-// TODO: handle advertising restart on BLE disconnect
 // TODO: maybe prevent BLE usage when BT is enabled?
 
-class BleServerEvents: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
+class BleServerEvents : public BLEServerCallbacks
+{
+    void onConnect(BLEServer *pServer)
+    {
         deviceConnected = true;
         led_set(LED_BLUE, deviceConnected);
     }
 
-    void onDisconnect(BLEServer* pServer) {
+    void onDisconnect(BLEServer *pServer)
+    {
         deviceConnected = false;
         led_set(LED_BLUE, deviceConnected);
     }
 };
 
-class BleCharacteristicEvents: public BLECharacteristicCallbacks {
-    public:
-        String buffer;
-    
-    BleCharacteristicEvents(String &readBuffer) {
-        buffer = readBuffer;
-    }
+class BleCharacteristicEvents : public BLECharacteristicCallbacks
+{
+    void onWrite(BLECharacteristic *pCharacteristic)
+    {
+        if (!ble_config->mode_ble)
+            return;
 
-    void onWrite(BLECharacteristic* pCharacteristic) {
-        if (!ble_config->mode_ble) return;
-        
         std::string rxValue = pCharacteristic->getValue();
-        if (rxValue.length() > 0) {
-            for (int i = 0; i < rxValue.length(); i++) {
-                char ch = rxValue[i];
-                if (ch == '\n' || ch == '\r') {
-                    if (buffer != "") {
-                        if (ble_config->command_handler) ble_config->command_handler();
-                        buffer = "";
+        if (rxValue.length() > 0)
+        {
+            for (int i = 0; i < rxValue.length(); i++)
+            {
+                bleReadBuffer += rxValue[i];
+                if (i == rxValue.length() - 1)
+                {
+                    if (bleReadBuffer != "")
+                    {
+                        if (ble_config->mode_debug & DEBUG_COMMAND)
+                            Serial.println("BLE read:" + bleReadBuffer);
+                        bufferAvailable = true;
                     }
-                } else {
-                    buffer += ch;
                 }
             }
         }
@@ -53,11 +55,14 @@ class BleCharacteristicEvents: public BLECharacteristicCallbacks {
     }
 };
 
-void ble_init() {
+void ble_init()
+{
     ble_config = getConfig();
 
-    if (ble_config->mode_ble) {
-        if (ble_config->mode_debug) Serial.println("BLE '" + String (ble_config->name_ble) + "' started.");
+    if (ble_config->mode_ble)
+    {
+        if (ble_config->mode_debug)
+            Serial.println("BLE '" + String(ble_config->name_ble) + "' started.");
 
         // Create the BLE device
         BLEDevice::init(ble_config->name_ble);
@@ -73,16 +78,14 @@ void ble_init() {
         // FIXME: notify characteristic is size limited (20B), this could cause issues
         pTxCharacteristic = pService->createCharacteristic(
             CHARACTERISTIC_UUID_TX,
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
+            BLECharacteristic::PROPERTY_NOTIFY);
         pTxCharacteristic->addDescriptor(new BLE2902());
 
         // Create the RX BLE characteristic
         BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
             CHARACTERISTIC_UUID_RX,
-            BLECharacteristic::PROPERTY_WRITE
-        );
-        pRxCharacteristic->setCallbacks(new BleCharacteristicEvents(bleReadBuffer));
+            BLECharacteristic::PROPERTY_WRITE);
+        pRxCharacteristic->setCallbacks(new BleCharacteristicEvents());
 
         // Start the service
         pService->start();
@@ -93,14 +96,45 @@ void ble_init() {
     }
 }
 
-void readIncomingBle(String &readBuffer) {
-    // Empty as handled by event callback    
+void readIncomingBle(String &readBuffer)
+{
+    if (bufferAvailable) {
+        readBuffer = bleReadBuffer;
+
+        if (ble_config->command_handler)
+            ble_config->command_handler();
+        readBuffer = "";
+        bleReadBuffer = "";
+        bufferAvailable = false;
+    }
 }
 
-void writeOutgoingBle(String o) {
-    if (deviceConnected) {
+void writeOutgoingBle(String o)
+{
+    if (deviceConnected)
+    {
         pTxCharacteristic->setValue(o.c_str());
         pTxCharacteristic->notify();
         delay(10); // Prevent BLE stack congestion
+    }
+}
+
+void checkStateBle()
+{
+    // Disconnecting
+    if (!deviceConnected && oldDeviceConnected)
+    {
+        delay(500);                  // Give time to the bluetooth stack to recover
+        pServer->startAdvertising(); // Restart advertising
+        if (ble_config->mode_debug)
+            Serial.println("BLE start advertising");
+        oldDeviceConnected = deviceConnected;
+    }
+
+    // Connecting
+    if (deviceConnected && !oldDeviceConnected)
+    {
+        // Things to do when BLE device is connected should go here
+        oldDeviceConnected = deviceConnected;
     }
 }

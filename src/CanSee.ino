@@ -180,6 +180,7 @@ void ticker1000ms()
   // do every 1000ms
   static bool powerToggle = false;
   led_set(LED_RED, (powerToggle = !powerToggle));
+  checkStateBle();
   // end do every 1000 ms
 
   if (++tick == 5)
