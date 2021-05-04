@@ -4,6 +4,7 @@
 static CS_CONFIG_t *bluetooth_config;
 static BluetoothSerial SerialBT;
 static bool bluetooth_active = false;
+static bool hadClient = false;
 
 void bluetooth_init () {
   bluetooth_config = getConfig ();
@@ -29,7 +30,24 @@ void writeOutgoingBluetooth (String o) {
 
 void readIncomingBluetooth (String &readBuffer) {
   if (!bluetooth_config->mode_bluetooth) return;
-  led_set (LED_BLUE, SerialBT.hasClient());
+
+  if (SerialBT.hasClient())
+  {
+    led_set (LED_BLUE, true);
+    hadClient = true;
+  }
+  else
+  {
+    led_set (LED_BLUE, false);
+
+    if (hadClient)
+    {
+      SerialBT.end();
+      SerialBT.begin(bluetooth_config->name_bluetooth);
+      hadClient = false;
+    }
+  }
+
   if (!SerialBT.available()) return;
   char ch = SerialBT.read();
   if (ch == '\n' || ch == '\r') {
