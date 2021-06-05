@@ -14,6 +14,6 @@
 void can_init();
 void can_send(CAN_frame_t *frame, uint8_t bus);
 boolean can_receive(CAN_frame_t *rx_frame);
-String canFrameToString(CAN_frame_t &frame);
+String canFrameToString(CAN_frame_t *frame);
 
 #endif

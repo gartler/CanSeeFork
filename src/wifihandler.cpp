@@ -1,3 +1,8 @@
+/**
+* @file wifihandler.cpp
+* @brief This module will handle WiFi communications.
+*/
+
 #include "wifihandler.h"
 #include "leds.h"
 
@@ -6,180 +11,196 @@ static boolean wiFiIsActive = false;
 WiFiServer server(35000);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
 
+/**
+ * Initialize WiFi subsystem
+ */
 void wifi_init()
 {
-  wifi_config = getConfig();
-  if (!wifi_config->mode_wifi)
-    return;
-  if (wifi_config->mode_bluetooth)
-  {
-    wifi_config->mode_wifi = 0;
-    if (wifi_config->mode_debug & DEBUG_COMMAND)
-      writeOutgoingSerialDebug("Wifi can not coexist with Bluetooth and is disabled.");
-  }
+	wifi_config = getConfig();
+	if (!wifi_config->mode_wifi)
+		return;
+	if (wifi_config->mode_bluetooth)
+	{
+		wifi_config->mode_wifi = 0;
+		if (wifi_config->mode_debug & DEBUG_COMMAND)
+			writeOutgoingSerialDebug("Wifi can not coexist with Bluetooth and is disabled.");
+	}
 
-  if (wifi_config->mode_wifi == WIFI_SOFTAP)
-  {
-    if (wifi_config->mode_debug & DEBUG_COMMAND)
-      writeOutgoingSerialDebug("Wifi AP '" + String(wifi_config->ssid_ap) + "' started.");
-    WiFi.softAP(wifi_config->ssid_ap, wifi_config->password_ap); // init WiFi access point
-    wiFiIsActive = true;                                         // no need to check for active network
-    if (wifi_config->mode_debug & DEBUG_COMMAND)
-    {
-      IPAddress IP = WiFi.softAPIP();
-      writeOutgoingSerialDebug("AP IP address: " + IP.toString());
-    }
-    server.begin(); // start the server
-  }
-  else if (wifi_config->mode_wifi == WIFI_STATION)
-  {
-    if (wifi_config->mode_debug & DEBUG_COMMAND)
-      writeOutgoingSerialDebug("Wifi connecting to " + String(wifi_config->ssid_station) + " starting ...");
-    WiFi.begin(wifi_config->ssid_station, wifi_config->password_station); // init WiFi station. Cheking is done in main loop
-    WiFi.mode(WIFI_STA);
+	if (wifi_config->mode_wifi == WIFI_SOFTAP)
+	{
+		if (wifi_config->mode_debug & DEBUG_COMMAND)
+			writeOutgoingSerialDebug("Wifi AP '" + String(wifi_config->ssid_ap) + "' started.");
+		WiFi.softAP(wifi_config->ssid_ap, wifi_config->password_ap); // init WiFi access point
+		wiFiIsActive = true;										 // no need to check for active network
+		if (wifi_config->mode_debug & DEBUG_COMMAND)
+		{
+			IPAddress IP = WiFi.softAPIP();
+			writeOutgoingSerialDebug("AP IP address: " + IP.toString());
+		}
+		server.begin(); // start the server
+	}
+	else if (wifi_config->mode_wifi == WIFI_STATION)
+	{
+		if (wifi_config->mode_debug & DEBUG_COMMAND)
+			writeOutgoingSerialDebug("Wifi connecting to " + String(wifi_config->ssid_station) + " starting ...");
+		WiFi.begin(wifi_config->ssid_station, wifi_config->password_station); // init WiFi station. Cheking is done in main loop
+		WiFi.mode(WIFI_STA);
 
-    server.begin(); // start the server
-  }
+		server.begin(); // start the server
+	}
 }
 
+/**
+ * Write a String to the WiFi output, if the WiFi mode is enabled and a
+ * connection is established
+ * @param o String to send
+ */
 void writeOutgoingWiFi(String o)
 {
-  if (!wifi_config->mode_wifi)
-    return;
-  if (!wiFiIsActive)
-    return;
-  char buf[1024];
-  unsigned int len;
-  // o.replace ("\n", "\n\r");
-  if ((len = o.length()) > 1024)
-    len = 1024;
-  o.toCharArray(buf, len);
-  for (int i = 0; i < MAX_SRV_CLIENTS; i++)
-  {
-    if (serverClients[i] && serverClients[i].connected())
-    {
-      //serverClients[i].write(o);
-      serverClients[i].write(buf, len);
-      //delay(1);
-    }
-  }
+	if (!wifi_config->mode_wifi)
+		return;
+	if (!wiFiIsActive)
+		return;
+	char buf[1024];
+	unsigned int len;
+	// o.replace ("\n", "\n\r");
+	if ((len = o.length()) > 1024)
+		len = 1024;
+	o.toCharArray(buf, len);
+	for (int i = 0; i < MAX_SRV_CLIENTS; i++)
+	{
+		if (serverClients[i] && serverClients[i].connected())
+		{
+			//serverClients[i].write(o);
+			serverClients[i].write(buf, len);
+			//delay(1);
+		}
+	}
 }
 
+/**
+ * Reads characters from the WiFi input to a supplied String
+ * if a newline or return is received, the command handler will
+ * be called and the buffer is cleared. This code will also
+ * handle (dis)connect of the WiFi subsystem. as it is called
+ * periodically anyway.
+ * @param readBuffer String to store command characters in
+ */
 void readIncomingWiFi(String &readBuffer)
 {
-  if (!wifi_config->mode_wifi)
-    return;
+	if (!wifi_config->mode_wifi)
+		return;
 
-  // if in station mode, check if connected and set wiFiActive
-  // if in softap modem wifi is always active
-  if (wifi_config->mode_wifi == WIFI_STATION)
-  {
-    led_set(LED_BLUE, WiFi.status() == WL_CONNECTED);
-    if (WiFi.status() == WL_CONNECTED)
-    { // check if connected
-      if (!wiFiIsActive)
-      {
-        if (wifi_config->mode_debug & DEBUG_COMMAND)
-        {
-          IPAddress IP = WiFi.localIP();
-          writeOutgoingSerialDebug("IP ST address: " + IP.toString());
-        }
-        wiFiIsActive = true;
-      }
-    }
-    else
-    {
-      if (wiFiIsActive)
-      {
-        wiFiIsActive = false;
-      }
-    }
-  }
-  else if (wifi_config->mode_wifi == WIFI_SOFTAP)
-  {
-    // turn led on if there is a least one client
-    led_set(LED_BLUE, WiFi.softAPgetStationNum() != 0);
+	// if in station mode, check if connected and set wiFiActive
+	// if in softap modem wifi is always active
+	if (wifi_config->mode_wifi == WIFI_STATION)
+	{
+		led_set(LED_BLUE, WiFi.status() == WL_CONNECTED);
+		if (WiFi.status() == WL_CONNECTED)
+		{ // check if connected
+			if (!wiFiIsActive)
+			{
+				if (wifi_config->mode_debug & DEBUG_COMMAND)
+				{
+					IPAddress IP = WiFi.localIP();
+					writeOutgoingSerialDebug("IP ST address: " + IP.toString());
+				}
+				wiFiIsActive = true;
+			}
+		}
+		else
+		{
+			if (wiFiIsActive)
+			{
+				wiFiIsActive = false;
+			}
+		}
+	}
+	else if (wifi_config->mode_wifi == WIFI_SOFTAP)
+	{
+		// turn led on if there is a least one client
+		led_set(LED_BLUE, WiFi.softAPgetStationNum() != 0);
 
-    wiFiIsActive = true;
-  }
-  if (!wiFiIsActive)
-    return;
+		wiFiIsActive = true;
+	}
+	if (!wiFiIsActive)
+		return;
 
-  // at this point in time we can be sure there is operational WiFi
-  uint8_t i;
-  if (server.hasClient())
-  { // check if there are any *NEW* clients
-    for (i = 0; i < MAX_SRV_CLIENTS; i++)
-    { //if so, find free or disconnected spot
-      if (!serverClients[i] || !serverClients[i].connected())
-      {
-        if (serverClients[i])
-        {                          // if not free (so disconnected)
-          serverClients[i].stop(); // stop the client
-          if (wifi_config->mode_debug & DEBUG_COMMAND)
-          {
-            writeOutgoingSerialDebug("Disconnected" + String(i));
-          }
-        }
-        serverClients[i] = server.available(); // fetch the client
-        if (serverClients[i])
-        { // it should be here
-          if (wifi_config->mode_debug & DEBUG_COMMAND)
-          {
-            writeOutgoingSerialDebug("New client: " + String(i) + ' ' + serverClients[i].remoteIP().toString());
-          }
-        }
-        else
-        { // if gone, oh well
-          if (wifi_config->mode_debug & DEBUG_COMMAND)
-            writeOutgoingSerialDebug("available broken");
-        }
-        break;
-      }
-    }
-    if (i >= MAX_SRV_CLIENTS)
-    { //no free/disconnected spot so reject
-      server.available().stop();
-      if (wifi_config->mode_debug & DEBUG_COMMAND)
-        writeOutgoingSerialDebug("Refused");
-    }
-  }
+	// at this point in time we can be sure there is operational WiFi
+	uint8_t i;
+	if (server.hasClient())
+	{ // check if there are any *NEW* clients
+		for (i = 0; i < MAX_SRV_CLIENTS; i++)
+		{ //if so, find free or disconnected spot
+			if (!serverClients[i] || !serverClients[i].connected())
+			{
+				if (serverClients[i])
+				{							 // if not free (so disconnected)
+					serverClients[i].stop(); // stop the client
+					if (wifi_config->mode_debug & DEBUG_COMMAND)
+					{
+						writeOutgoingSerialDebug("Disconnected" + String(i));
+					}
+				}
+				serverClients[i] = server.available(); // fetch the client
+				if (serverClients[i])
+				{ // it should be here
+					if (wifi_config->mode_debug & DEBUG_COMMAND)
+					{
+						writeOutgoingSerialDebug("New client: " + String(i) + ' ' + serverClients[i].remoteIP().toString());
+					}
+				}
+				else
+				{ // if gone, oh well
+					if (wifi_config->mode_debug & DEBUG_COMMAND)
+						writeOutgoingSerialDebug("available broken");
+				}
+				break;
+			}
+		}
+		if (i >= MAX_SRV_CLIENTS)
+		{ //no free/disconnected spot so reject
+			server.available().stop();
+			if (wifi_config->mode_debug & DEBUG_COMMAND)
+				writeOutgoingSerialDebug("Refused");
+		}
+	}
 
-  // at this point actual connections (new and lost ones) are handled
-  for (i = 0; i < MAX_SRV_CLIENTS; i++)
-  { // check clients for data
-    if (serverClients[i] && serverClients[i].connected())
-    {
-      while (serverClients[i].available())
-      { // if there is data
-        led_set(LED_GREEN, true);
-        char ch = serverClients[i].read(); // get it
-        if (ch == '\n' || ch == '\r')
-        { // buffer / process it
-          if (readBuffer != "")
-          {
-            if (wifi_config->command_handler)
-              wifi_config->command_handler();
-            readBuffer = "";
-          }
-        }
-        else
-        {
-          readBuffer += ch;
-        }
-        led_set(LED_GREEN, false);
-      }
-    }
-    else
-    { // no client, or unconnected
-      if (serverClients[i])
-      {                          // if there is a client (so unconnected)
-        serverClients[i].stop(); // stop the client
-        if (wifi_config->mode_debug & DEBUG_COMMAND)
-        {
-          writeOutgoingSerialDebug("Disconnected:" + String(i));
-        }
-      }
-    }
-  }
+	// at this point actual connections (new and lost ones) are handled
+	for (i = 0; i < MAX_SRV_CLIENTS; i++)
+	{ // check clients for data
+		if (serverClients[i] && serverClients[i].connected())
+		{
+			while (serverClients[i].available())
+			{ // if there is data
+				led_set(LED_GREEN, true);
+				char ch = serverClients[i].read(); // get it
+				if (ch == '\n' || ch == '\r')
+				{ // buffer / process it
+					if (readBuffer != "")
+					{
+						if (wifi_config->command_handler)
+							wifi_config->command_handler();
+						readBuffer = "";
+					}
+				}
+				else
+				{
+					readBuffer += ch;
+				}
+				led_set(LED_GREEN, false);
+			}
+		}
+		else
+		{ // no client, or unconnected
+			if (serverClients[i])
+			{							 // if there is a client (so unconnected)
+				serverClients[i].stop(); // stop the client
+				if (wifi_config->mode_debug & DEBUG_COMMAND)
+				{
+					writeOutgoingSerialDebug("Disconnected:" + String(i));
+				}
+			}
+		}
+	}
 }
