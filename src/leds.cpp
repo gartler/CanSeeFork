@@ -19,12 +19,13 @@ void leds_init()
 	}
 	else if (leds_config->mode_leds == LED_SINGLE)
 	{
-		pinMode(LED_BUILTIN, OUTPUT);
+		pinMode(LED_SINGLE_PIN, OUTPUT);
+		pinMode(LED_SINGLE_PIN2, OUTPUT);
 		for (int i = 0; i < 3; i++)
 		{
-			led_set(LED_BUILTIN, true);
+			led_set(LED_SINGLE_PIN, true);
 			delay(200);
-			led_set(LED_BUILTIN, false);
+			led_set(LED_SINGLE_PIN, false);
 			delay(200);
 		}
 	}
@@ -91,14 +92,16 @@ void led_set(unsigned led, bool on)
 			// if blue only toggle on change
 			if (on != blueState)
 			{
-				digitalWrite(LED_BUILTIN, (singleLedState = !singleLedState) ? LED_SINGLE_ON : LED_SINGLE_OFF);
+				digitalWrite(LED_SINGLE_PIN, (singleLedState = !singleLedState) ? LED_SINGLE_ON : LED_SINGLE_OFF);
+				digitalWrite(LED_SINGLE_PIN2, (singleLedState) ? LED_SINGLE_OFF : LED_SINGLE_ON);
 				blueState = on;
 			}
 		}
 		else
 		{
 			// else just toggle
-			digitalWrite(LED_BUILTIN, (singleLedState = !singleLedState) ? LED_SINGLE_ON : LED_SINGLE_OFF);
+			digitalWrite(LED_SINGLE_PIN, (singleLedState = !singleLedState) ? LED_SINGLE_ON : LED_SINGLE_OFF);
+			digitalWrite(LED_SINGLE_PIN2, (singleLedState) ? LED_SINGLE_OFF : LED_SINGLE_ON);
 		}
 	}
 	else
@@ -134,6 +137,6 @@ void toggleAliveLed()
 {
 	static bool aliveToggle = false;
 	led_set(
-		(leds_config->mode_leds == LED_SINGLE) ? LED_BUILTIN : LED_RED,
+		(leds_config->mode_leds == LED_SINGLE) ? LED_SINGLE_PIN : LED_RED,
 		(aliveToggle = !aliveToggle));
 }

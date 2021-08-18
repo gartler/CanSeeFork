@@ -6,27 +6,6 @@
 #include "canhandler.h"
 
 static CS_CONFIG_t *can_config;
-static uint8_t used_bus;
-CAN_device_t CAN_cfg;
-
-/**
- * can_bus_set() initializes the settings for the CANbus subsystem
- */
-void can_bus_set()
-{
-	if (used_bus == 0)
-	{ // init the CAN bus (pins and baudrate)
-		CAN_cfg.speed = (CAN_speed_t)can_config->can0_speed;
-		CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can0_tx;
-		CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can0_rx;
-	}
-	else
-	{
-		CAN_cfg.speed = (CAN_speed_t)can_config->can1_speed;
-		CAN_cfg.tx_pin_id = (gpio_num_t)can_config->can1_tx;
-		CAN_cfg.rx_pin_id = (gpio_num_t)can_config->can1_rx;
-	}
-}
 
 /**
  * can_init() gets the config, sets the bus to 0, creates a freeRTOS queue for
@@ -35,20 +14,46 @@ void can_bus_set()
 void can_init()
 {
 	can_config = getConfig();
-	used_bus = 0;
-	can_bus_set();
-	// create a generic RTOS queue for CAN receiving, with 10 positions
-	CAN_cfg.rx_queue = xQueueCreate(10, sizeof(CAN_frame_t));
-	if (CAN_cfg.rx_queue == 0)
+	can_filter_config_t filter_config = CAN_FILTER_CONFIG_ACCEPT_ALL();
+	can_timing_config_t timing_config;
+	esp_err_t error;
+	can_general_config_t general_config = {
+		.mode = CAN_MODE_NORMAL,
+		.tx_io = (gpio_num_t)can_config->can0_tx,
+		.rx_io = (gpio_num_t)can_config->can0_rx,
+		.clkout_io = (gpio_num_t)CAN_IO_UNUSED,
+		.bus_off_io = (gpio_num_t)CAN_IO_UNUSED,
+		.tx_queue_len = 2,
+		.rx_queue_len = 2,
+		.alerts_enabled = CAN_ALERT_NONE,
+		.clkout_divider = 0};
+
+	switch (can_config->can0_speed)
 	{
-		if (can_config->mode_debug)
-			writeOutgoingSerialDebug("Can't create CANbus buffer. Stopping");
-		while (1)
-			;
+	case CAN_SPEED_1000KBPS:
+		timing_config = CAN_TIMING_CONFIG_1MBITS();
+		break;
+	case CAN_SPEED_500KBPS:
+		timing_config = CAN_TIMING_CONFIG_500KBITS();
+		break;
+	case CAN_SPEED_250KBPS:
+		timing_config = CAN_TIMING_CONFIG_250KBITS();
+		break;
 	}
-	if (can_config->mode_debug)
-		writeOutgoingSerialDebug("CANbus started");
-	ESP32Can.CANInit(); // initialize CAN Module
+
+	error = can_driver_install(&general_config, &timing_config, &filter_config);
+	if (error != ESP_OK)
+	{
+		Serial.println("CAN Driver installation fail");
+		return;
+	}
+
+	// start CAN driver
+	error = can_start();
+	if (error != ESP_OK)
+	{
+		Serial.println("CAN Driver start fail");
+	}
 }
 
 /**
@@ -60,14 +65,48 @@ void can_init()
  */
 void can_send(CAN_frame_t *frame, uint8_t bus)
 {
-	if (bus != used_bus)
+	esp_err_t result;
+	can_message_t native_frame;
+
+	native_frame.data[0] = frame->data.u8[0];
+	native_frame.data[1] = frame->data.u8[1];
+	native_frame.data[2] = frame->data.u8[2];
+	native_frame.data[3] = frame->data.u8[3];
+	native_frame.data[4] = frame->data.u8[4];
+	native_frame.data[5] = frame->data.u8[5];
+	native_frame.data[6] = frame->data.u8[6];
+	native_frame.data[7] = frame->data.u8[7];
+	native_frame.data_length_code = frame->FIR.B.DLC;
+	native_frame.flags = frame->FIR.B.FF == CAN_frame_std ? CAN_MSG_FLAG_NONE : CAN_MSG_FLAG_EXTD;
+	native_frame.identifier = frame->MsgID;
+	result = can_transmit(&native_frame, pdMS_TO_TICKS(0));
+	if (result != ESP_OK)
 	{
-		used_bus = bus;
-		ESP32Can.CANStop();
-		can_bus_set();
-		ESP32Can.CANInit(); // initialize CAN Module
+		Serial.print("can_send error:");
+		Serial.println(result);
 	}
-	ESP32Can.CANWriteFrame(frame);
+}
+
+boolean can_receive_core(CAN_frame_t *rx_frame, TickType_t ticks_to_wait)
+{
+	can_message_t native_frame;
+
+	if (can_receive(&native_frame, ticks_to_wait) == ESP_OK)
+	{
+		rx_frame->data.u8[0] = native_frame.data[0];
+		rx_frame->data.u8[1] = native_frame.data[1];
+		rx_frame->data.u8[2] = native_frame.data[2];
+		rx_frame->data.u8[3] = native_frame.data[3];
+		rx_frame->data.u8[4] = native_frame.data[4];
+		rx_frame->data.u8[5] = native_frame.data[5];
+		rx_frame->data.u8[6] = native_frame.data[6];
+		rx_frame->data.u8[7] = native_frame.data[7];
+		rx_frame->FIR.B.DLC = native_frame.data_length_code;
+		rx_frame->FIR.B.FF = native_frame.flags & CAN_MSG_FLAG_EXTD ? CAN_frame_ext : CAN_frame_std;
+		rx_frame->MsgID = native_frame.identifier;
+		return true;
+	}
+	return false;
 }
 
 /**
@@ -78,7 +117,18 @@ void can_send(CAN_frame_t *frame, uint8_t bus)
  */
 boolean can_receive(CAN_frame_t *rx_frame)
 {
-	return xQueueReceive(CAN_cfg.rx_queue, rx_frame, (TickType_t)0) == pdTRUE ? true : false;
+	return can_receive_core(rx_frame, pdMS_TO_TICKS(0));
+}
+
+/**
+ * can_receive_blocled is a blocking function, waiting for a frame to be available
+ * on the queue. Note that the queue is fed by the CANbus hardware ISR.
+ * @param rx_frame Pointer to the frame that will be populated
+ * @returns true if there was a frame available
+ */
+boolean can_receive_blocked(CAN_frame_t *rx_frame)
+{
+	return can_receive_core(rx_frame, portMAX_DELAY);
 }
 
 /**

@@ -4,7 +4,7 @@
 */
 
 #include "config.h"
-#include "CAN_config.h"
+#include "canhandler.h"
 
 static CS_CONFIG_t cs_config;
 static bool fetched = false;
@@ -17,7 +17,7 @@ static void setConfigDefault_3()
 	cs_config.version = 3; // change if length of config changes
 	cs_config.can0_rx = GPIO_NUM_4;
 	cs_config.can0_tx = GPIO_NUM_5;
-	cs_config.can0_speed = (uint16_t)CAN_SPEED_500KBPS;
+	cs_config.can0_speed = (uint16_t)CAN_SPEED_500KBPS; // (uint16_t)CAN_SPEED_500KBPS;
 	cs_config.can1_rx = GPIO_NUM_18;
 	cs_config.can1_tx = GPIO_NUM_19;
 	cs_config.can1_speed = (uint16_t)CAN_SPEED_250KBPS;

@@ -11,6 +11,9 @@
 #define LED_YELLOW 27 // reserved for future use (maybe: off = BT mode, on = WiFi Client, blink = WiFi AP)
 #define LED_WHITE 26  // reserved for future use
 
+#define LED_SINGLE_PIN 2
+#define LED_SINGLE_PIN2 17
+
 #define LED_ON HIGH // Active HIGH
 #define LED_OFF LOW
 

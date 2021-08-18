@@ -6,7 +6,6 @@
 */
 
 #include "isotphandler.h"
-#include "leds.h"
 
 static CS_CONFIG_t *isotp_config;
 static ISO_MESSAGE_t isoMessageIncoming; // declare an ISO-TP message

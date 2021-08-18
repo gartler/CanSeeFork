@@ -5,6 +5,8 @@
 
 #include "config.h"
 #include "canhandler.h"
+#include "serialhandler.h"
+#include "leds.h"
 #include "utils.h"
 #include "zoe.h"
 
