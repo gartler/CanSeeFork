@@ -9,7 +9,15 @@
 static CS_CONFIG_t *bluetooth_config;
 static BluetoothSerial SerialBT;
 static bool bluetooth_active = false;
-static int16_t watchDogStatus = 0;
+
+/**
+ * watchDogStatus can be in two states:
+ * value = 0: the watchdog is inactive
+ * value > 1: the watchdog is counting up every 5 seconds.
+ * The bluetooth watchdog can optionally be (re)started when a full command is received (readIncomingBluetooth)
+ * setting it to 1.
+ */
+static uint16_t watchDogStatus = 0;
 
 /**
  * Initialize bluetooth subsystem
@@ -106,6 +114,7 @@ void readIncomingBluetooth(String &readBuffer)
 		{
 			if (bluetooth_active && bluetooth_config->command_handler)
 				bluetooth_config->command_handler();
+			// watchDogStatus = 1; //(re)start the watchdog
 			readBuffer = "";
 		}
 	}
