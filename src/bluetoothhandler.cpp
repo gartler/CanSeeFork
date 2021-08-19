@@ -25,6 +25,7 @@ void bluetooth_init()
 		SerialBT.begin(bluetooth_config->name_bluetooth); // init Bluetooth serial, no password in current framework
 	}
 }
+static bool hadClient = false;
 
 /**
  * Simple Watchdog that is triggered every 5 seconds by the main loop. If the bluetooth
@@ -78,7 +79,24 @@ void readIncomingBluetooth(String &readBuffer)
 {
 	if (!bluetooth_config->mode_bluetooth)
 		return;
-	led_set(LED_BLUE, SerialBT.hasClient());
+
+	if (SerialBT.hasClient())
+	{
+		led_set(LED_BLUE, true);
+		hadClient = true;
+	}
+	else
+	{
+		led_set(LED_BLUE, false);
+
+		if (hadClient)
+		{
+			SerialBT.end();
+			SerialBT.begin(bluetooth_config->name_bluetooth);
+			hadClient = false;
+		}
+	}
+
 	if (!SerialBT.available())
 		return;
 	char ch = SerialBT.read();
@@ -88,7 +106,6 @@ void readIncomingBluetooth(String &readBuffer)
 		{
 			if (bluetooth_active && bluetooth_config->command_handler)
 				bluetooth_config->command_handler();
-			// watchDogStatus = 1; // reset and start the watchdog
 			readBuffer = "";
 		}
 	}

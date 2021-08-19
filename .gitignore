@@ -7,5 +7,4 @@
 *.ino.cpp
 *.code-workspace
 .DS_Store
-
 html/
