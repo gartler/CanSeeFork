@@ -44,7 +44,7 @@ void can_init()
 	error = can_driver_install(&general_config, &timing_config, &filter_config);
 	if (error != ESP_OK)
 	{
-		Serial.println("CAN Driver installation fail");
+		writeOutgoingSerialDebug("CAN Driver installation fail");
 		return;
 	}
 
@@ -52,7 +52,7 @@ void can_init()
 	error = can_start();
 	if (error != ESP_OK)
 	{
-		Serial.println("CAN Driver start fail");
+		writeOutgoingSerialDebug("CAN Driver start fail");
 	}
 }
 
@@ -82,8 +82,7 @@ void can_send(CAN_frame_t *frame, uint8_t bus)
 	result = can_transmit(&native_frame, pdMS_TO_TICKS(0));
 	if (result != ESP_OK)
 	{
-		Serial.print("can_send error:");
-		Serial.println(result);
+		writeOutgoingSerialDebug("can_send error:" + String(result));
 	}
 }
 

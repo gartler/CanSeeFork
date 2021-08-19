@@ -8,6 +8,7 @@
 #include <driver/gpio.h>
 
 #include "config.h"
+#include "serialhandler.h"
 #include "utils.h"
 
 // for historical reasons, we use the can_frame definition of Thomas Barth and Michael Wagner
