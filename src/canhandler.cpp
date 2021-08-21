@@ -23,8 +23,8 @@ void can_init()
 		.rx_io = (gpio_num_t)can_config->can0_rx,
 		.clkout_io = (gpio_num_t)CAN_IO_UNUSED,
 		.bus_off_io = (gpio_num_t)CAN_IO_UNUSED,
-		.tx_queue_len = 2,
-		.rx_queue_len = 2,
+		.tx_queue_len = 20,
+		.rx_queue_len = 20,
 		.alerts_enabled = CAN_ALERT_NONE,
 		.clkout_divider = 0};
 
@@ -79,7 +79,7 @@ void can_send(CAN_frame_t *frame, uint8_t bus)
 	native_frame.data_length_code = frame->FIR.B.DLC;
 	native_frame.flags = frame->FIR.B.FF == CAN_frame_std ? CAN_MSG_FLAG_NONE : CAN_MSG_FLAG_EXTD;
 	native_frame.identifier = frame->MsgID;
-	result = can_transmit(&native_frame, pdMS_TO_TICKS(0));
+	result = can_transmit(&native_frame, pdMS_TO_TICKS(20));
 	if (result != ESP_OK)
 	{
 		writeOutgoingSerialDebug("can_send error:" + String(result));
