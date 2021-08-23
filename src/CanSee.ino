@@ -200,6 +200,7 @@ void tickerFast()
 		if (raceCondition++ > 200) {
 			can_deinit();
 			can_init();
+			raceCondition = 0;
 		}
 	} else {
 		raceCondition = 0;
