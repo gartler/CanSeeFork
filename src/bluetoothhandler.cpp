@@ -33,7 +33,6 @@ void bluetooth_init()
 		SerialBT.begin(bluetooth_config->name_bluetooth); // init Bluetooth serial, no password in current framework
 	}
 }
-static bool hadClient = false;
 
 /**
  * Simple Watchdog that is triggered every 5 seconds by the main loop. If the bluetooth
@@ -85,13 +84,20 @@ void writeOutgoingBluetooth(String o)
  */
 void readIncomingBluetooth(String &readBuffer)
 {
+	static bool hadClient = false;
+
 	if (!bluetooth_config->mode_bluetooth)
 		return;
 
 	if (SerialBT.hasClient())
 	{
 		led_set(LED_BLUE, true);
-		hadClient = true;
+
+		if (!hadClient)
+		{
+			writeOutgoingSerialDebug("Bluetooth connected");
+			hadClient = true;
+		}
 	}
 	else
 	{
@@ -99,6 +105,7 @@ void readIncomingBluetooth(String &readBuffer)
 
 		if (hadClient)
 		{
+			writeOutgoingSerialDebug("Bluetooth '" + String(bluetooth_config->name_bluetooth) + "' restarted.");
 			SerialBT.end();
 			SerialBT.begin(bluetooth_config->name_bluetooth);
 			hadClient = false;
