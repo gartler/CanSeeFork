@@ -57,6 +57,35 @@ void can_init()
 }
 
 /**
+ * deinitialize canbus driver
+ * 
+ */
+void can_deinit()
+{
+	//Stop the CAN driver
+	if (can_stop() == ESP_OK)
+	{
+		writeOutgoingSerialDebug("Driver stopped\n");
+	}
+	else
+	{
+		writeOutgoingSerialDebug("Failed to stop driver\n");
+		return;
+	}
+
+	//Uninstall the CAN driver
+	if (can_driver_uninstall() == ESP_OK)
+	{
+		writeOutgoingSerialDebug("Driver uninstalled\n");
+	}
+	else
+	{
+		writeOutgoingSerialDebug("Failed to uninstall driver\n");
+		return;
+	}
+}
+
+/**
  * can_send() sends a frame directly to the hardware (no buffering). It might
  * reinitialize the hardware if a bus switch is requested, then writes the
  * frame
@@ -79,6 +108,7 @@ void can_send(CAN_frame_t *frame, uint8_t bus)
 	native_frame.data_length_code = frame->FIR.B.DLC;
 	native_frame.flags = frame->FIR.B.FF == CAN_frame_std ? CAN_MSG_FLAG_NONE : CAN_MSG_FLAG_EXTD;
 	native_frame.identifier = frame->MsgID;
+	//writeOutgoingSerialDebug("can transmit");
 	result = can_transmit(&native_frame, pdMS_TO_TICKS(20));
 	if (result != ESP_OK)
 	{
@@ -116,7 +146,7 @@ boolean can_receive_core(CAN_frame_t *rx_frame, TickType_t ticks_to_wait)
  */
 boolean can_receive(CAN_frame_t *rx_frame)
 {
-	return can_receive_core(rx_frame, pdMS_TO_TICKS(0));
+	return can_receive_core(rx_frame, (TickType_t)0);
 }
 
 /**
@@ -142,6 +172,5 @@ String canFrameToString(CAN_frame_t *frame)
 	{
 		dataString += getHex(frame->data.u8[i]);
 	}
-	dataString += "\n";
 	return dataString;
 }

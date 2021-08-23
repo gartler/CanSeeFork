@@ -64,6 +64,7 @@ typedef struct {
 } CAN_frame_t;
 
 void can_init ();
+void can_deinit();
 void can_send (CAN_frame_t *frame, uint8_t bus);
 boolean can_receive (CAN_frame_t *rx_frame);
 boolean can_receive_blocked (CAN_frame_t *rx_frame);
