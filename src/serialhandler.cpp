@@ -14,7 +14,11 @@ void serial_init()
 { // Serial is already running
 	serial_config = getConfig();
 	if (!serial_config->mode_serial && !serial_config->mode_debug)
+	{
+		Serial.println("ending serial\n");
+		delay(100);
 		Serial.end();
+	}
 }
 
 /**
@@ -36,7 +40,7 @@ void writeOutgoingSerial(String o)
  */
 void writeOutgoingSerialDebug(String o)
 {
-	if (serial_config->mode_debug)
+	if (!serial_config->mode_debug)
 		return;
 	Serial.println(o);
 	if (serial_config->mode_debug & DEBUG_FLUSH_SERIAL)
