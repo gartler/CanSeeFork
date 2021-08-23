@@ -99,13 +99,13 @@ CS_CONFIG_t *cansee_config;
 /** @brief Command structure that defines a textual incoming command */
 typedef struct
 {
-	char cmd;/**< @brief One letter command. */
-	uint32_t id = 0;/**< @brief First paramter. */
-	uint8_t request[32];/**< @brief Second parameter. */
-	uint16_t requestLength = 0;/**< @brief length of second parameter. */
-	uint8_t reply[32];/**< @brief Third parameter. */
-	uint16_t replyLength = 0;/**< @brief Langth of third parameter. */
-	char line[48];/**< @brief Complete command string. */
+	char cmd;					/**< @brief One letter command. */
+	uint32_t id = 0;			/**< @brief First paramter. */
+	uint8_t request[32];		/**< @brief Second parameter. */
+	uint16_t requestLength = 0; /**< @brief length of second parameter. */
+	uint8_t reply[32];			/**< @brief Third parameter. */
+	uint16_t replyLength = 0;	/**< @brief Langth of third parameter. */
+	char line[48];				/**< @brief Complete command string. */
 } COMMAND_t;
 
 // command read buffer *******************************************************
@@ -189,6 +189,7 @@ void tickerFast()
 {
 	uint32_t nowMicros = micros();
 	static uint32_t lastMicros = nowMicros; // static so should only be initalized once
+	static uint16_t raceCondition = 0;
 
 	// do Fast
 	CAN_frame_t rx_frame; // 1. receive next CAN frame from queue
@@ -196,6 +197,12 @@ void tickerFast()
 	{
 		storeFrame(rx_frame);
 		canFrameCounter++;
+		if (raceCondition++ > 200) {
+			can_deinit();
+			can_init();
+		}
+	} else {
+		raceCondition = 0;
 	}
 	readIncoming(); // 2. proceed with input (serial & BT)
 	isotp_ticker();
@@ -477,7 +484,7 @@ void processCommand()
 /**
  * Parse a string into a command
  * @param input The string to parse
- */ 
+ */
 COMMAND_t decodeCommand(String &input)
 {
 	COMMAND_t result;
