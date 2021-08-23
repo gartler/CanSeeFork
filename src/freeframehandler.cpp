@@ -32,8 +32,7 @@ void storeFreeframe(CAN_frame_t *frame, uint8_t bus)
 		return;
 	if (freeframe_config->mode_debug & DEBUG_BUS_RECEIVE_FF)
 	{
-		writeOutgoingSerialDebug("< can:FF:");
-		writeOutgoingSerialDebug(canFrameToString(frame));
+		writeOutgoingSerialDebug("< can:FF:" + canFrameToString(frame));
 	}
 	for (int i = 0; i < 8; i++)
 	{ // store a copy
@@ -65,7 +64,7 @@ void ageFreeFrame()
 FREEFRAME_t *getFreeframe(uint32_t id, uint8_t bus)
 {
 	if (id >= FREEFRAMEARRAYSIZE)
-		return &freeframes[0];
+		id = 0;
 	return &freeframes[id];
 }
 
@@ -76,9 +75,15 @@ FREEFRAME_t *getFreeframe(uint32_t id, uint8_t bus)
  */
 void requestFreeframe(uint32_t id, uint8_t bus)
 {
+	String outString;
 	if (freeframe_config->output_handler)
 	{
-		freeframe_config->output_handler(bufferedFrameToString(id, bus));
+		if (id >= FREEFRAMEARRAYSIZE)
+			id = 0;
+		outString = bufferedFrameToString(id, bus);
+		if (freeframe_config->mode_debug & DEBUG_COMMAND_FF && freeframes[id].age > 0)
+			writeOutgoingSerialDebug("> buf:FF MSG:" + outString);
+		freeframe_config->output_handler(outString + "\n");
 	}
 }
 
@@ -98,6 +103,5 @@ String bufferedFrameToString(uint32_t id, uint8_t bus)
 			dataString += getHex(freeframes[id].data[i]);
 		}
 	}
-	dataString += "\n";
 	return dataString;
 }

@@ -6,9 +6,9 @@
 #define WIFI_STATION 1
 #define WIFI_SOFTAP 2
 
-//#define DEBUG_COMMAND_FF 0x08     //     unused
+#define DEBUG_COMMAND_FF 0x08     //     unused
 #define DEBUG_COMMAND 0x04 // (*) debug all command activity
-#define DEBUG_BUS_RECEIVE_ISO 0x02
+#define DEBUG_BUS_RECEIVE_ISO 0x02 
 #define DEBUG_BUS_RECEIVE_FF 0x01 //     debug all incoming freeframes
 #define DEBUG_COMMAND_ISO 0x10	  // (*) debug all incoming and outgoing ISOTP-frames
 #define DEBUG_FLUSH_SERIAL 0x80	  // experimental. Avoid possible crash because of serial overwhelming
