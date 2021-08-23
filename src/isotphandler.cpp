@@ -108,7 +108,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 	if (frame->FIR.B.DLC == 0 || frame->MsgID != isoMessageIncoming.id)
 	{
 		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-			writeOutgoingSerialDebug("< can:ISO frame of unrequested id:" + String(frame->MsgID, HEX));
+			writeOutgoingSerialDebug("< can:ISO frame of unrequested id:" + String(isoMessageIncoming.id, HEX) + "," + String(frame->MsgID, HEX));
 		// new assumption: there is only ONE active ISOTP command going on this means that this condition
 		// should reset the ISOTP receiver
 		resetIsoTp();
@@ -145,10 +145,11 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 			isotp_config->output_handler(isoMessageToString(&isoMessageIncoming));
 		// isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added until it is re-initialized
 		resetIsoTp();
+		return;
 	}
 
 	// first frame of a multi-framed message *********************************
-	else if (type == 0x1)
+	if (type == 0x1)
 	{
 		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
 		{
@@ -165,6 +166,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		messageLength |= frame->data.u8[1];
 		if (messageLength > 4096)
 		{
+			writeOutgoingSerialDebug("length FRST > 4096");
 			resetIsoTp();
 			return;
 		}
@@ -174,10 +176,11 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		{
 			isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
 		}
+		return;
 	}
 
 	// consecutive frame(s) **************************************************
-	else if (type == 0x2)
+	if (type == 0x2)
 	{
 		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
 		{
@@ -213,10 +216,11 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 			// isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added intil it is re-initialized
 			resetIsoTp();
 		}
+		return;
 	}
 
 	// incoming flow control ***********************************************
-	else if (type == 0x3)
+	if (type == 0x3)
 	{
 		//uint8_t flag = isoMessageIncoming.data[0] &0x0f;
 		isoMessageOutgoing.flow_counter = frame->data.u8[1];
@@ -227,14 +231,13 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 			isoMessageOutgoing.flow_delay = 5000;
 		isoMessageOutgoing.flow_active = 1;
 		lastMicros = micros();
+		return;
 	}
 
-	else
-	{
-		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-			writeOutgoingSerialDebug("< can:ISO ignoring unknown frame type:" + String(type));
-	}
+	if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+		writeOutgoingSerialDebug("< can:ISO ignoring unknown frame type:" + String(type));
 	resetIsoTp();
+	return;
 }
 
 /**
@@ -291,6 +294,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 	// store request to send
 	isoMessageOutgoing.length = length;
 	if (isoMessageOutgoing.length > 4096) {
+		writeOutgoingSerialDebug("length request > 4096");
 		resetIsoTp();
 		return;
 	}
