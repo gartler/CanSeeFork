@@ -13,13 +13,21 @@ static ISO_MESSAGE_t isoMessageOutgoing; // declare an ISO-TP message
 static unsigned long lastMicros;
 
 /**
+ * Resets the isotp state
+ */
+void resetIsoTp()
+{
+	isoMessageIncoming.id = isoMessageOutgoing.id = 0xffff;
+	isoMessageIncoming.length = isoMessageIncoming.index = isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
+}
+
+/**
  * Initializes the isotp subsystem
  */
 void isotp_init()
 {
 	isotp_config = getConfig();
-	isoMessageIncoming.id = isoMessageOutgoing.id = 0xffff;
-	isoMessageIncoming.length = isoMessageIncoming.index = isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
+	resetIsoTp();
 }
 
 /**
@@ -97,127 +105,136 @@ void isotp_ticker()
 void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 {
 	// if there is content and this is the frame we are waiting for
-	if (frame->FIR.B.DLC > 0 && frame->MsgID == isoMessageIncoming.id)
-	{
-
-		uint8_t type = frame->data.u8[0] >> 4; // type = first nibble
-
-		// single frame answer ***************************************************
-		if (type == 0x0)
-		{
-			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-			{
-				writeOutgoingSerialDebug("< can:ISO SING:");
-				writeOutgoingSerialDebug(canFrameToString(frame));
-			}
-
-			uint16_t messageLength = frame->data.u8[0] & 0x0f; // length = second nibble + second byte
-			if (messageLength > 7)
-				messageLength = 7; // this should never happen
-			isoMessageIncoming.length = messageLength;
-
-			// fill up with this initial first-frame data (should always be 6)
-			for (int i = 1; i < frame->FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++)
-			{
-				isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
-			}
-			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-				writeOutgoingSerialDebug("> can:ISO MSG:");
-			if (isotp_config->output_handler)
-				isotp_config->output_handler(isoMessageToString(&isoMessageIncoming));
-			isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added intil it is re-initialized
-		}
-
-		// first frame of a multi-framed message *********************************
-		else if (type == 0x1)
-		{
-			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-			{
-				writeOutgoingSerialDebug("< can:ISO FRST:");
-				writeOutgoingSerialDebug(canFrameToString(frame));
-			}
-
-			// start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
-			led_set(LED_GREEN, true);
-			can_send_flow(isoMessageOutgoing.id, bus);
-			led_set(LED_GREEN, false);
-
-			uint16_t messageLength = (frame->data.u8[0] & 0x0f) << 8; // length = second nibble + second byte
-			messageLength |= frame->data.u8[1];
-			if (messageLength > 4096)
-				messageLength = 4096; // this should never happen
-			isoMessageIncoming.length = messageLength;
-			for (int i = 2; i < 8; i++)
-			{
-				isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
-			}
-		}
-
-		// consecutive frame(s) **************************************************
-		else if (type == 0x2)
-		{
-			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-			{
-				writeOutgoingSerialDebug("< can:ISO NEXT:");
-				writeOutgoingSerialDebug(canFrameToString(frame));
-			}
-
-			uint8_t sequence = frame->data.u8[0] & 0x0f;
-			if (isoMessageIncoming.next == sequence)
-			{
-				for (int i = 1; i < frame->FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++)
-				{
-					isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
-				}
-
-				// wait for next message, rollover from 15 to 0
-				isoMessageIncoming.next = isoMessageIncoming.next == 15 ? 0 : isoMessageIncoming.next + 1;
-
-				// is this the last part?
-				if (isoMessageIncoming.index == isoMessageIncoming.length)
-				{
-					// output the data
-					String dataString = isoMessageToString(&isoMessageIncoming);
-					if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-						writeOutgoingSerialDebug("> can:ISO MSG:");
-					if (isotp_config->output_handler)
-						isotp_config->output_handler(dataString);
-					isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added intil it is re-initialized
-				}
-			}
-			else
-			{
-				if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-					writeOutgoingSerialDebug("< can:ISO Out of sequence, resetting");
-				isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added intil it is re-initialized
-			}
-		}
-
-		// incoming flow control ***********************************************
-		else if (type == 0x3)
-		{
-			//uint8_t flag = isoMessageIncoming.data[0] &0x0f;
-			isoMessageOutgoing.flow_counter = frame->data.u8[1];
-			isoMessageOutgoing.flow_delay = frame->data.u8[2] <= 127 ? frame->data.u8[2] * 1000 : frame->data.u8[2] - 0xf0;
-			// to avoid overwhelming the outgoing queue, set minimum to 5 ms
-			// this is experimental.
-			if (isoMessageOutgoing.flow_delay < 5000)
-				isoMessageOutgoing.flow_delay = 5000;
-			isoMessageOutgoing.flow_active = 1;
-			lastMicros = micros();
-		}
-
-		else
-		{
-			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-				writeOutgoingSerialDebug("< can:ISO ignoring unknown frame type:" + String(type));
-		}
-	}
-	else
+	if (frame->FIR.B.DLC == 0 || frame->MsgID != isoMessageIncoming.id)
 	{
 		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
 			writeOutgoingSerialDebug("< can:ISO frame of unrequested id:" + String(frame->MsgID, HEX));
+		// new assumption: there is only ONE active ISOTP command going on this means that this condition
+		// should reset the ISOTP receiver
+		resetIsoTp();
+		return;
 	}
+
+	uint8_t type = frame->data.u8[0] >> 4; // type = first nibble
+
+	// single frame answer ***************************************************
+	if (type == 0x0)
+	{
+		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+		{
+			writeOutgoingSerialDebug("< can:ISO SING:");
+			writeOutgoingSerialDebug(canFrameToString(frame));
+		}
+
+		uint16_t messageLength = frame->data.u8[0] & 0x0f; // length = second nibble + second byte
+		if (messageLength > 7)
+		{
+			resetIsoTp();
+			return;
+		}
+		isoMessageIncoming.length = messageLength;
+
+		// fill up with this initial first-frame data (should always be 6)
+		for (int i = 1; i < frame->FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++)
+		{
+			isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
+		}
+		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+			writeOutgoingSerialDebug("> can:ISO MSG:");
+		if (isotp_config->output_handler)
+			isotp_config->output_handler(isoMessageToString(&isoMessageIncoming));
+		// isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added until it is re-initialized
+		resetIsoTp();
+	}
+
+	// first frame of a multi-framed message *********************************
+	else if (type == 0x1)
+	{
+		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+		{
+			writeOutgoingSerialDebug("< can:ISO FRST:");
+			writeOutgoingSerialDebug(canFrameToString(frame));
+		}
+
+		// start by requesting requesing the type Consecutive (0x2) frames by sending a Flow frame
+		led_set(LED_GREEN, true);
+		can_send_flow(isoMessageOutgoing.id, bus);
+		led_set(LED_GREEN, false);
+
+		uint16_t messageLength = (frame->data.u8[0] & 0x0f) << 8; // length = second nibble + second byte
+		messageLength |= frame->data.u8[1];
+		if (messageLength > 4096)
+		{
+			resetIsoTp();
+			return;
+		}
+
+		isoMessageIncoming.length = messageLength;
+		for (int i = 2; i < 8; i++)
+		{
+			isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
+		}
+	}
+
+	// consecutive frame(s) **************************************************
+	else if (type == 0x2)
+	{
+		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+		{
+			writeOutgoingSerialDebug("< can:ISO NEXT:");
+			writeOutgoingSerialDebug(canFrameToString(frame));
+		}
+
+		uint8_t sequence = frame->data.u8[0] & 0x0f;
+		if (isoMessageIncoming.next != sequence)
+		{
+			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+				writeOutgoingSerialDebug("< can:ISO Out of sequence, resetting");
+			resetIsoTp();
+		}
+
+		for (int i = 1; i < frame->FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++)
+		{
+			isoMessageIncoming.data[isoMessageIncoming.index++] = frame->data.u8[i];
+		}
+
+		// wait for next message, rollover from 15 to 0
+		isoMessageIncoming.next = isoMessageIncoming.next == 15 ? 0 : isoMessageIncoming.next + 1;
+
+		// is this the last part?
+		if (isoMessageIncoming.index == isoMessageIncoming.length)
+		{
+			// output the data
+			String dataString = isoMessageToString(&isoMessageIncoming);
+			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+				writeOutgoingSerialDebug("> can:ISO MSG:");
+			if (isotp_config->output_handler)
+				isotp_config->output_handler(dataString);
+			// isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added intil it is re-initialized
+			resetIsoTp();
+		}
+	}
+
+	// incoming flow control ***********************************************
+	else if (type == 0x3)
+	{
+		//uint8_t flag = isoMessageIncoming.data[0] &0x0f;
+		isoMessageOutgoing.flow_counter = frame->data.u8[1];
+		isoMessageOutgoing.flow_delay = frame->data.u8[2] <= 127 ? frame->data.u8[2] * 1000 : frame->data.u8[2] - 0xf0;
+		// to avoid overwhelming the outgoing queue, set minimum to 5 ms
+		// this is experimental.
+		if (isoMessageOutgoing.flow_delay < 5000)
+			isoMessageOutgoing.flow_delay = 5000;
+		isoMessageOutgoing.flow_active = 1;
+		lastMicros = micros();
+	}
+
+	else
+	{
+		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+			writeOutgoingSerialDebug("< can:ISO ignoring unknown frame type:" + String(type));
+	}
+	resetIsoTp();
 }
 
 /**
@@ -256,6 +273,8 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 {
 	CAN_frame_t frame; // build the CAN frame
 
+	resetIsoTp(); // cancel possible ongoing IsoTp run
+
 	isoMessageIncoming.id = id;	  // expected ID of answer
 	isoMessageIncoming.index = 0; // starting
 	isoMessageIncoming.next = 1;
@@ -266,12 +285,16 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 			writeOutgoingSerialDebug("> com:" + String(id, HEX) + " has no corresponding request ID");
 		if (isotp_config->output_handler)
 			isotp_config->output_handler(String(id, HEX) + "\n");
+		resetIsoTp();
 		return;
 	}
 	// store request to send
 	isoMessageOutgoing.length = length;
-	if (isoMessageOutgoing.length > 4096)
-		isoMessageOutgoing.length = 4096; // this should never happen (yet)
+	if (isoMessageOutgoing.length > 4096) {
+		resetIsoTp();
+		return;
+	}
+
 	for (uint16_t i = 0; i < length; i++)
 	{
 		isoMessageOutgoing.data[i] = request[i];
