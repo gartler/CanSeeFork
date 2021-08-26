@@ -62,7 +62,7 @@ void isotp_ticker()
 	// debug
 	if (isotp_config->mode_debug & DEBUG_COMMAND_ISO)
 	{
-		writeOutgoingSerialDebug("> com:Sending ISOTP NEXT:" + canFrameToString(&frame));
+		writeOutgoingSerialDebug("> can:Sending ISOTP NEXT:" + canFrameToString(&frame));
 	}
 
 	// check if we reached the end of the message
@@ -164,7 +164,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		messageLength |= frame->data.u8[1];
 		if (messageLength > 4096)
 		{
-			writeOutgoingSerialDebug("length FRST > 4096");
+			writeOutgoingSerialDebug("< can: length FRST > 4096");
 			resetIsoTp();
 			return;
 		}
@@ -207,7 +207,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 			// output the data
 			String dataString = isoMessageToString(&isoMessageIncoming);
 			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
-				writeOutgoingSerialDebug("> can:ISO MSG:" + dataString);
+				writeOutgoingSerialDebug("< can:ISO MSG:" + dataString);
 			if (isotp_config->output_handler)
 				isotp_config->output_handler(dataString + "\n");
 			resetIsoTp();
@@ -218,6 +218,9 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 	// incoming flow control ***********************************************
 	if (type == 0x3)
 	{
+		if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
+			writeOutgoingSerialDebug("< can:ISO FLOW");
+
 		//uint8_t flag = isoMessageIncoming.data[0] &0x0f;
 		isoMessageOutgoing.flow_counter = frame->data.u8[1];
 		isoMessageOutgoing.flow_delay = frame->data.u8[2] <= 127 ? frame->data.u8[2] * 1000 : frame->data.u8[2] - 0xf0;
@@ -281,7 +284,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 	if ((isoMessageOutgoing.id = getRequestId(id)) == 0) // ID to send request to
 	{
 		if (isotp_config->mode_debug & DEBUG_COMMAND)
-			writeOutgoingSerialDebug("> com:" + String(id, HEX) + " has no corresponding request ID");
+			writeOutgoingSerialDebug("> can:" + String(id, HEX) + " has no corresponding request ID");
 		if (isotp_config->output_handler)
 			isotp_config->output_handler(String(id, HEX) + "\n");
 		resetIsoTp();
@@ -289,8 +292,9 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 	}
 	// store request to send
 	isoMessageOutgoing.length = length;
-	if (isoMessageOutgoing.length > 4096) {
-		writeOutgoingSerialDebug("length request > 4096");
+	if (isoMessageOutgoing.length > 4096)
+	{
+		writeOutgoingSerialDebug("> can:length request > 4096");
 		resetIsoTp();
 		return;
 	}
@@ -324,7 +328,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 		// debug
 		if (isotp_config->mode_debug & DEBUG_COMMAND_ISO)
 		{
-			writeOutgoingSerialDebug("> com:Sending ISOTP SING request:" + canFrameToString(&frame));
+			writeOutgoingSerialDebug("> can:Sending ISOTP SING request:" + canFrameToString(&frame));
 		}
 
 		// send the frame
@@ -351,7 +355,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 		// debug
 		if (isotp_config->mode_debug & DEBUG_COMMAND_ISO)
 		{
-			writeOutgoingSerialDebug("> com:Sending ISOTP FRST request:" + canFrameToString(&frame));
+			writeOutgoingSerialDebug("> can:Sending ISOTP FRST request:" + canFrameToString(&frame));
 		}
 
 		// send the frame
