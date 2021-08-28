@@ -13,21 +13,21 @@ static ISO_MESSAGE_t isoMessageOutgoing; // declare an ISO-TP message
 static unsigned long lastMicros;
 
 /**
- * Resets the isotp state
- */
-void resetIsoTp()
-{
-	isoMessageIncoming.id = isoMessageOutgoing.id = 0xffff;
-	isoMessageIncoming.length = isoMessageIncoming.index = isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
-}
-
-/**
  * Initializes the isotp subsystem
  */
 void isotp_init()
 {
 	isotp_config = getConfig();
-	resetIsoTp();
+	isotp_reset();
+}
+
+/**
+ * Resets the isotp state
+ */
+void isotp_reset()
+{
+	isoMessageIncoming.id = isoMessageOutgoing.id = 0xffff;
+	isoMessageIncoming.length = isoMessageIncoming.index = isoMessageOutgoing.length = isoMessageOutgoing.index = 0;
 }
 
 /**
@@ -110,7 +110,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 			writeOutgoingSerialDebug("< can:ISO frame of unrequested id:" + String(isoMessageIncoming.id, HEX) + "," + String(frame->MsgID, HEX));
 		// new assumption: there is only ONE active ISOTP command going on this means that this condition
 		// should reset the ISOTP receiver
-		resetIsoTp();
+		isotp_reset();
 		return;
 	}
 
@@ -127,7 +127,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		uint16_t messageLength = frame->data.u8[0] & 0x0f; // length = second nibble + second byte
 		if (messageLength > 7)
 		{
-			resetIsoTp();
+			isotp_reset();
 			return;
 		}
 		isoMessageIncoming.length = messageLength;
@@ -143,7 +143,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		if (isotp_config->output_handler)
 			isotp_config->output_handler(isoMessageToString(&isoMessageIncoming) + "\n");
 		// isoMessageIncoming.id = 0xffff; // cancel this message so nothing will be added until it is re-initialized
-		resetIsoTp();
+		isotp_reset();
 		return;
 	}
 
@@ -165,7 +165,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		if (messageLength > 4096)
 		{
 			writeOutgoingSerialDebug("< can: length FRST > 4096");
-			resetIsoTp();
+			isotp_reset();
 			return;
 		}
 
@@ -190,7 +190,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 		{
 			if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
 				writeOutgoingSerialDebug("< can:ISO Out of sequence, resetting");
-			resetIsoTp();
+			isotp_reset();
 		}
 
 		for (int i = 1; i < frame->FIR.B.DLC && isoMessageIncoming.index < isoMessageIncoming.length; i++)
@@ -210,7 +210,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 				writeOutgoingSerialDebug("< can:ISO MSG:" + dataString);
 			if (isotp_config->output_handler)
 				isotp_config->output_handler(dataString + "\n");
-			resetIsoTp();
+			isotp_reset();
 		}
 		return;
 	}
@@ -235,7 +235,7 @@ void storeIsotpframe(CAN_frame_t *frame, uint8_t bus)
 
 	if (isotp_config->mode_debug & DEBUG_BUS_RECEIVE_ISO)
 		writeOutgoingSerialDebug("< can:ISO ignoring unknown frame type:" + String(type));
-	resetIsoTp();
+	isotp_reset();
 	return;
 }
 
@@ -275,7 +275,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 {
 	CAN_frame_t frame; // build the CAN frame
 
-	resetIsoTp(); // cancel possible ongoing IsoTp run
+	isotp_reset(); // cancel possible ongoing IsoTp run
 
 	isoMessageIncoming.id = id;	  // expected ID of answer
 	isoMessageIncoming.index = 0; // starting
@@ -287,7 +287,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 			writeOutgoingSerialDebug("> can:" + String(id, HEX) + " has no corresponding request ID");
 		if (isotp_config->output_handler)
 			isotp_config->output_handler(String(id, HEX) + "\n");
-		resetIsoTp();
+		isotp_reset();
 		return;
 	}
 	// store request to send
@@ -295,7 +295,7 @@ void requestIsotp(uint32_t id, int16_t length, uint8_t *request, uint8_t bus)
 	if (isoMessageOutgoing.length > 4096)
 	{
 		writeOutgoingSerialDebug("> can:length request > 4096");
-		resetIsoTp();
+		isotp_reset();
 		return;
 	}
 

@@ -342,6 +342,7 @@ void processCommand()
 	{
 		int count = 0;
 		FREEFRAME_t *freeframe;
+		isotp_reset();
 		for (uint32_t id = 0; id < FREEFRAMEARRAYSIZE; id++)
 		{
 			freeframe = getFreeframe(id, bus); // bus is ignored for free frames
@@ -359,6 +360,7 @@ void processCommand()
 
 	// get a frame ***********************************************************
 	case 'g':
+		isotp_reset();
 		if (command.id < FREEFRAMEARRAYSIZE)
 		{
 			requestFreeframe(command.id, bus);
@@ -388,6 +390,7 @@ void processCommand()
 	// inject a frame via serial / BT input **********************************
 	case 't':
 	{
+		isotp_reset();
 		CAN_frame_t frame;
 		frame.MsgID = command.id;
 		frame.FIR.B.DLC = command.requestLength;
@@ -401,6 +404,7 @@ void processCommand()
 
 	// filter (deprecated) ***************************************************
 	case 'f':
+		isotp_reset();
 		if (cansee_config->mode_debug & DEBUG_COMMAND)
 			writeOutgoingSerialDebug("> com:Filter " + getHex(command.id));
 		writeOutgoing(getHex(command.id) + "\n");
@@ -408,6 +412,7 @@ void processCommand()
 
 	// config (see config.cpp) ***********************************************
 	case 'n':
+		isotp_reset();
 		if (cansee_config->mode_debug & DEBUG_COMMAND)
 			writeOutgoingSerialDebug("> com:config " + getHex(command.id));
 		switch (command.id)

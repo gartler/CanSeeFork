@@ -27,6 +27,7 @@ typedef struct
 } ISO_MESSAGE_t;
 
 void isotp_init();
+void isotp_reset();
 void isotp_ticker();
 void storeIsotpframe(CAN_frame_t *frame, uint8_t bus);
 void can_send_flow(uint32_t requestId, uint8_t flow);
