@@ -112,7 +112,7 @@ void can_send(CAN_frame_t *frame, uint8_t bus)
 	result = can_transmit(&native_frame, pdMS_TO_TICKS(20));
 	if (result != ESP_OK)
 	{
-		writeOutgoingSerialDebug("can_send error:" + String(result));
+		writeOutgoingSerialDebug("can_send error:" + String(esp_err_to_name(result)));
 	}
 }
 
