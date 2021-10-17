@@ -229,7 +229,26 @@ void ticker100ms()
 
 	// end do every 100 ms
 
-	if (++tick == 10)
+	if (++tick == 5)
+	{
+		ticker500ms();
+		tick = 0;
+	}
+}
+
+/**
+ * Do every 500ms
+ */
+void ticker500ms()
+{
+	static int tick = 0;
+
+	// do every 500ms
+	// Things like button pushed should go here
+	if (cansee_config->mode_bluetooth == 2) toggleAliveLed();
+	// end do every 500 ms
+
+	if (++tick == 2)
 	{
 		ticker1000ms();
 		tick = 0;
@@ -247,7 +266,7 @@ void ticker1000ms()
 	// do every 1000ms
 
 	// toggle the Alive LED
-	toggleAliveLed();
+	if (cansee_config->mode_bluetooth != 2) toggleAliveLed();
 
 	// feed the dog
 	//esp_task_wdt_reset();

@@ -52,6 +52,19 @@ void bluetoothWatchdogTicker()
 		ESP.restart();
 }
 
+bool hasClient()
+{
+	if (!bluetooth_active)
+		return false; // bluetooth should be active
+	if (SerialBT.hasClient())
+	{
+		bluetooth_config->mode_bluetooth = 2;
+		return true;
+	}
+	bluetooth_config->mode_bluetooth = 1;
+	return false;
+}
+
 /**
  * (dis)ables bluetooth communication
  */
@@ -72,7 +85,7 @@ void setActiveBluetooth(bool active)
  */
 void writeOutgoingBluetooth(String o)
 {
-	if (bluetooth_active && SerialBT.hasClient())
+	if (hasClient())
 		SerialBT.print(o);
 }
 
@@ -89,7 +102,7 @@ void readIncomingBluetooth(String &readBuffer)
 	if (!bluetooth_config->mode_bluetooth)
 		return;
 
-	if (SerialBT.hasClient())
+	if (hasClient())
 	{
 		led_set(LED_BLUE, true);
 

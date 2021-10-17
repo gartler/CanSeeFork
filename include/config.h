@@ -24,7 +24,7 @@ typedef struct
 	uint32_t magicnumber;				/**< @brief Magic number indicating the EEPROM blob is valid */
 	byte version;						/**< @brief Version of the EEPROM blob */
 	byte mode_serial;					/**< @brief Serial mode. o=off, *=on */
-	byte mode_bluetooth; /**< @brief */ /**< @brief Bluetooth mode. o=off, *=on */
+	byte mode_bluetooth;				/**< @brief Bluetooth mode. 0=off, 1=on, 2=connected */
 	byte mode_wifi;						/**< @brief Wifi mode. 0=off, 1=station, 2=access point */
 	byte mode_debug;					/**< @brief Debug settings, see defines */
 	byte mode_leds;						/**< @brief LED setting. 0=off, 1=SINGLE, *=MULTI */
