@@ -6,6 +6,9 @@
 #include "bluetoothhandler.h"
 #include "leds.h"
 
+#include "esp_gap_bt_api.h"
+
+
 static CS_CONFIG_t *bluetooth_config;
 static BluetoothSerial SerialBT;
 static bool bluetooth_active = false;
@@ -19,6 +22,31 @@ static bool bluetooth_active = false;
  */
 static uint16_t watchDogStatus = 0;
 
+
+/**
+ * Specify a different Class Of Device, to allow connections on Chrome OS
+ */
+static void bluetoothSetClassOfDevice()
+{
+	// Copy/paste from: https://github.com/espressif/arduino-esp32/blob/master/libraries/BluetoothSerial/src/BluetoothSerial.cpp - Line 636
+	// This should change the announced BT Class of Device (COD) to something Chrome OS will accept...
+	// - - -
+	// the default BTA_DM_COD_LOUDSPEAKER does not work with the macOS BT stack
+	esp_bt_cod_t cod;
+	// Settings from source:
+	//cod.major = 0b00001;			// 0b00001 = Computer (desktop,notebook, PDA, organizers, .... )
+	//cod.minor = 0b000100;			// 0b000100 = Handheld PC/PDA (clam shell)
+	//cod.service = 0b00000010110;	// Networking (LAN, Ad hoc, ...) + 2*reserved
+	// Modified settings:
+	cod.major = 0b00101;			// 0b00101 = Peripheral (mouse, joystick, keyboards, ..... )
+	cod.minor = 0b000000;			// 0b000000 = Uncategorized device
+	cod.service = 0b00000010000;	// Networking (LAN, Ad hoc, ...) + 2*reserved (b14 + b15) - now set to 0
+	if (esp_bt_gap_set_cod(cod, ESP_BT_INIT_COD) != ESP_OK) {
+		writeOutgoingSerialDebug("Bluetooth - Set cod failed");
+	}
+	// - - -
+}
+
 /**
  * Initialize bluetooth subsystem
  */
@@ -31,6 +59,7 @@ void bluetooth_init()
 		if (bluetooth_config->mode_debug & DEBUG_COMMAND)
 			writeOutgoingSerialDebug("Bluetooth '" + String(bluetooth_config->name_bluetooth) + "' started.");
 		SerialBT.begin(bluetooth_config->name_bluetooth); // init Bluetooth serial, no password in current framework
+		bluetoothSetClassOfDevice();
 	}
 }
 
@@ -121,6 +150,7 @@ void readIncomingBluetooth(String &readBuffer)
 			writeOutgoingSerialDebug("Bluetooth '" + String(bluetooth_config->name_bluetooth) + "' restarted.");
 			SerialBT.end();
 			SerialBT.begin(bluetooth_config->name_bluetooth);
+			bluetoothSetClassOfDevice();
 			hadClient = false;
 		}
 	}
