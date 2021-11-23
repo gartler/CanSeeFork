@@ -37,10 +37,12 @@ static void bluetoothSetClassOfDevice()
 	//cod.major = 0b00001;			// 0b00001 = Computer (desktop,notebook, PDA, organizers, .... )
 	//cod.minor = 0b000100;			// 0b000100 = Handheld PC/PDA (clam shell)
 	//cod.service = 0b00000010110;	// Networking (LAN, Ad hoc, ...) + 2*reserved
-	// Modified settings:
-	cod.major = 0b00101;			// 0b00101 = Peripheral (mouse, joystick, keyboards, ..... )
-	cod.minor = 0b000000;			// 0b000000 = Uncategorized device
-	cod.service = 0b00000010000;	// Networking (LAN, Ad hoc, ...) + 2*reserved (b14 + b15) - now set to 0
+	// Modified settings, copied from KONNWEI. It now looks the same on Android, but still no serial connection from Chromebook
+	// See https://flylib.com/books/en/1.134.1/the_bluetooth_protocol.html
+	// and ask the entire class identifier using crosh command bt_console, then devices to find the mac, and info [mac] to see details
+	cod.major = 0b11111;			// 0x1f: Uncategorized
+	cod.minor = 0b000000;			// 0x00: Uncategorized device
+	cod.service = 0b00000000000;	// 
 	if (esp_bt_gap_set_cod(cod, ESP_BT_INIT_COD) != ESP_OK) {
 		writeOutgoingSerialDebug("Bluetooth - Set cod failed");
 	}
