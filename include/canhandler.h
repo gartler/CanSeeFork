@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // Repository included libraries includes, see ./lib/ ************************
-#include <driver/can.h>
+#include <driver/twai.h>
 #include <driver/gpio.h>
 
 #include "config.h"
@@ -66,7 +66,7 @@ typedef struct {
 void can_init ();
 void can_deinit();
 void can_send (CAN_frame_t *frame, uint8_t bus);
-boolean can_receive (CAN_frame_t *rx_frame);
+boolean can_receive_nonblocked (CAN_frame_t *rx_frame);
 boolean can_receive_blocked (CAN_frame_t *rx_frame);
 String canFrameToString(CAN_frame_t *frame);
 

@@ -38,7 +38,7 @@
  * CanSee
  * The firmware to the DIY, superfast, ESP32 based comapanion to CANZE dongle
  * 
- * Copyright (C) 2019 - The CanZE Team
+ * Copyright (C) 2019,2020,2021,2022,2023 - The CanZE Team
  * http://canze.fisch.lu
 
  * This program is free software: you can redistribute it and/or modify
@@ -56,7 +56,7 @@
  * 
  */
 
-#define VERSION "015"
+#define VERSION "016"
 
 #define SERIAL_BPS 115200
 
@@ -193,7 +193,7 @@ void tickerFast()
 
 	// do Fast
 	CAN_frame_t rx_frame; // 1. receive next CAN frame from queue
-	if (can_receive(&rx_frame))
+	if (can_receive_nonblocked(&rx_frame))
 	{
 		storeFrame(rx_frame);
 		canFrameCounter++;
