@@ -53,8 +53,8 @@ static void setConfigDefault()
 	cs_config.magicnumber = 0x0caacee0;				// does that read CanSee?
 	cs_config.version = 1;							// change if length of config changes
 	cs_config.mode_serial = 1;						//
-	cs_config.mode_bluetooth = 1;					//
-	cs_config.mode_wifi = 0;						// WIFI_SOFTAP or WIFI_STATION
+	cs_config.mode_bluetooth = 0;					//
+	cs_config.mode_wifi = 2;						// WIFI_SOFTAP or WIFI_STATION
 	cs_config.mode_debug = 0x96;					// flush serial, debug ISO command and bus, debug command
 	cs_config.mode_leds = 1;						// single LED
 	strcpy(cs_config.name_bluetooth, "CANSee");		// name
