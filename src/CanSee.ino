@@ -81,7 +81,7 @@ ESP32 GPIO25  blue   LED with 120 O  resistor
 #include "canhandler.h"
 #include "leds.h"
 #include "serialhandler.h"
-#include "bluetoothhandler.h"
+//#include "bluetoothhandler.h"
 #include "wifihandler.h"
 #include "freeframehandler.h"
 #include "isotphandler.h"
@@ -156,13 +156,27 @@ void setup()
 	setConfigToEeprom(false);
 
 	// call all initalization routines
+	Serial.println("leds_init");
 	leds_init();
+
+	Serial.println("Serial_init");
 	serial_init();
-	bluetooth_init();
+
+//	bluetooth_init();
+    Serial.println("WIFI_init");
 	wifi_init();
+
+	Serial.println("CAN_init");
 	can_init();
+
+	Serial.println("FREEFrame_init");
 	freeframe_init();
+
+	Serial.println("isoTP_init");
 	isotp_init();
+
+	IPAddress IP = WiFi.softAPIP();
+    Serial.println("AP IP address: " + IP.toString());
 
 	// setup watchdog
 	//esp_task_wdt_init(2, true); // panic rebot if the dog hasn't been kicked in two seconds
@@ -270,12 +284,12 @@ void ticker1000ms()
 void ticker5000ms()
 {
 	// optionally disable blootooth if no data was received in the last 5 seconds
-	setActiveBluetooth(true);
+//	setActiveBluetooth(true);
 	// setActiveBluetooth(canFrameCounter != lastCanFrameCounter);
 	lastCanFrameCounter = canFrameCounter;
 
 	ageFreeFrame();
-	bluetoothWatchdogTicker();
+//	bluetoothWatchdogTicker();
 
 	// end do every 5000 ms
 }
@@ -306,7 +320,7 @@ void storeFrame(CAN_frame_t &frame)
 void writeOutgoing(String o)
 {
 	writeOutgoingSerial(o);
-	writeOutgoingBluetooth(o);
+//	writeOutgoingBluetooth(o);
 	writeOutgoingWiFi(o);
 }
 
@@ -316,7 +330,7 @@ void writeOutgoing(String o)
 void readIncoming()
 {
 	readIncomingSerial(readBuffer);
-	readIncomingBluetooth(readBuffer);
+//	readIncomingBluetooth(readBuffer);
 	readIncomingWiFi(readBuffer);
 }
 

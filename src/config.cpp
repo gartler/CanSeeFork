@@ -55,8 +55,8 @@ static void setConfigDefault()
 	cs_config.mode_serial = 1;						//
 	cs_config.mode_bluetooth = 0;					//
 	cs_config.mode_wifi = 2;						// WIFI_SOFTAP or WIFI_STATION
-	cs_config.mode_debug = 0x96;					// flush serial, debug ISO command and bus, debug command
-	cs_config.mode_leds = 1;						// single LED
+	cs_config.mode_debug = 0x04;					// flush serial, debug ISO command and bus, debug command
+	cs_config.mode_leds = 0;						// single LED
 	strcpy(cs_config.name_bluetooth, "CANSee");		// name
 	strcpy(cs_config.pin_bluetooth, "1234");		// not implemented in framework yet
 	strcpy(cs_config.ssid_ap, "CANSee");			//
