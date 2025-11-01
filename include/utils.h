@@ -5,6 +5,6 @@
 
 String getHexSimple(uint8_t num);
 String getHex(uint32_t num);
-unsigned int hexToDec(String hexString);
+uint32_t hexToDec(String hexString);
 
 #endif
